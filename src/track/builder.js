@@ -16,7 +16,15 @@ export class TrackBuilder {
     this.dir = 0;
     this.variant = 'road';
     this.open = false;
+    this.hangars = [];
+    this.decor = [];
   }
+
+  // cover cells x0..x1, z0..z1 with a hangar (height is automatic)
+  hangar(x0, z0, x1, z1) { this.hangars.push([x0, z0, x1, z1]); return this; }
+
+  // place a decor item on a ground cell (see DECOR_TYPES in scenery.js)
+  prop(type, x, z, rot = 0) { this.decor.push([type, x, z, rot]); return this; }
 
   // next block will occupy cell (cx, cy, cz), entered while heading `dir`
   at(cx, cy, cz, dir = 0) {
@@ -89,6 +97,9 @@ export class TrackBuilder {
   get level() { return Math.round(this.pos[1] / LEVEL); }
 
   build(meta = {}) {
-    return { ...meta, blocks: this.blocks.map((b) => b.slice()) };
+    const out = { ...meta, blocks: this.blocks.map((b) => b.slice()) };
+    if (this.hangars.length) out.hangars = this.hangars.map((h) => h.slice());
+    if (this.decor.length) out.decor = this.decor.map((d) => d.slice());
+    return out;
   }
 }

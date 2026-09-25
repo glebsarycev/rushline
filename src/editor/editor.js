@@ -4,12 +4,19 @@
 import * as THREE from 'three';
 import { CELL, LEVEL, ROAD_Y, GRID_MIN, GRID_MAX, MAX_LEVEL, SURFACE_VARIANTS } from '../config.js';
 import { BLOCKS, BLOCK_LIST, CATEGORIES, worldCells, worldPort, portKey, DIRS } from '../track/blocks.js';
-import { buildBlockMesh } from '../render/trackMesh.js';
+import { buildBlockMesh, buildBufferMesh } from '../render/trackMesh.js';
+import { GeoBuffer } from '../track/geometry.js';
+import { DECOR, DECOR_TYPES, buildDecor, decorSeed, hangarHeight, occupancy } from '../track/scenery.js';
 import { applyMaterialMood } from '../render/materials.js';
 import * as Records from '../game/records.js';
 import { formatTime } from '../util/math.js';
 
 const SURF_LABEL = { road: 'Road', dirt: 'Dirt', ice: 'Ice' };
+// editor-only tabs after the block categories
+const SCENERY_TABS = [{ id: 'hangar', name: 'Hangar' }, { id: 'decor', name: 'Decor' }];
+const TABS = [...CATEGORIES, ...SCENERY_TABS];
+const MAX_HANGARS = 8, MAX_HANGAR_SIDE = 16;
+const HANGAR_ICON = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><rect width="160" height="120" fill="#1a222d"/><path d="M20 96V50l60-22 60 22v46z" fill="#8e969f"/><path d="M20 50l60-22 60 22" fill="none" stroke="#3b424b" stroke-width="5"/><rect x="58" y="62" width="44" height="34" fill="#15171b"/><path d="M58 62h44v8H58z" fill="#f2b705"/><path d="M62 62l-4 8h6l4-8zm12 0l-4 8h6l4-8zm12 0l-4 8h6l4-8zm12 0l-4 8h4v-8z" fill="#15171b"/><rect x="28" y="56" width="22" height="6" fill="#2c4058"/><rect x="110" y="56" width="22" height="6" fill="#2c4058"/></svg>`);
 const ENV_LABEL = { day: 'Day', sunset: 'Sunset', night: 'Night' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -27,6 +34,12 @@ export class Editor {
     this.group.add(this.blockGroup);
     this.blocks = [];
     this.occ = new Map();
+    this.hangars = [];
+    this.decor = [];
+    this.sceneryGroup = new THREE.Group();
+    this.group.add(this.sceneryGroup);
+    this.decorType = 'containers';
+    this.hangarDrag = null;
     this.type = 'straight';
     this.rot = 0;
     this.level = 0;
@@ -59,7 +72,7 @@ export class Editor {
     const M = this.app.materials;
     this.previewMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, emissive: 0x32d67a, emissiveIntensity: 0.35, depthWrite: false });
     this.footMat = new THREE.MeshBasicMaterial({ color: 0x32d67a, transparent: true, opacity: 0.28, depthWrite: false });
-    this.footMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(CELL - 1, 0.3, CELL - 1), this.footMat, 64);
+    this.footMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(CELL - 1, 0.3, CELL - 1), this.footMat, 256);
     this.footMesh.count = 0;
     this.footMesh.frustumCulled = false;
     this.group.add(this.footMesh);
@@ -88,6 +101,9 @@ export class Editor {
       this.meta = { id: entry.id, name: entry.name || 'Untitled track', author: entry.author || 'Me', env: entry.env || 'day' };
       this.authorTime = entry.authorTime || null;
       for (const b of entry.blocks) this._add({ type: b[0], x: b[1], y: b[2], z: b[3], rot: b[4] || 0, surf: b[5] || 'road' });
+      for (const h of entry.hangars || []) this._add({ kind: 'hangar', x0: Math.min(h[0], h[2]), z0: Math.min(h[1], h[3]), x1: Math.max(h[0], h[2]), z1: Math.max(h[1], h[3]) });
+      for (const d of entry.decor || []) if (DECOR[d[0]]) this._add({ kind: 'decor', type: d[0], x: d[1], z: d[2], rot: d[3] || 0 });
+      this._refreshHangars();
     } else {
       this.meta = { id: null, name: 'Untitled track', author: 'Me', env: 'day' };
       this.authorTime = null;
@@ -112,6 +128,7 @@ export class Editor {
     app.env.setPreset(this.meta.env);
     applyMaterialMood(app.materials, this.meta.env);
     if (app.env.stadium) app.env.stadium.visible = false;
+    app.indoor.setEnabled(false);
     this.root.hidden = false;
     this._makeThumbs();
     this._refreshPalette();
@@ -137,6 +154,15 @@ export class Editor {
     for (const b of this.blocks) this.blockGroup.remove(b.mesh);
     this.blocks = [];
     this.occ.clear();
+    for (const o of [...this.hangars, ...this.decor]) this._dispose(o.mesh);
+    this.hangars = [];
+    this.decor = [];
+  }
+
+  _dispose(mesh) {
+    if (!mesh) return;
+    this.sceneryGroup.remove(mesh);
+    mesh.traverse((o) => { if (o.geometry && !o.userData.sharedGeometry) o.geometry.dispose(); if (o.userData.ownMaterial) o.material.dispose(); });
   }
 
   // ---- block bookkeeping --------------------------------------------------------------------
@@ -154,6 +180,19 @@ export class Editor {
   }
 
   _add(data) {
+    if (data.kind === 'hangar') {
+      const h = { ...data };
+      this.hangars.push(h);
+      return h;
+    }
+    if (data.kind === 'decor') {
+      const d = { ...data };
+      d.mesh = this._decorMesh(d.type, d.x, d.z, d.rot);
+      d.mesh.traverse((o) => { o.userData.decor = d; });
+      this.sceneryGroup.add(d.mesh);
+      this.decor.push(d);
+      return d;
+    }
     if (!BLOCKS[data.type]) return null;
     const b = { ...data };
     b.mesh = buildBlockMesh(b.type, b.surf, this.app.materials);
@@ -167,6 +206,13 @@ export class Editor {
   }
 
   _remove(b) {
+    if (b.kind === 'hangar' || b.kind === 'decor') {
+      const list = b.kind === 'hangar' ? this.hangars : this.decor;
+      const k = list.indexOf(b);
+      if (k >= 0) list.splice(k, 1);
+      this._dispose(b.mesh);
+      return;
+    }
     const i = this.blocks.indexOf(b);
     if (i < 0) return;
     this.blocks.splice(i, 1);
@@ -174,9 +220,17 @@ export class Editor {
     for (const [x, y, z] of this._cells(b)) if (this.occ.get(this._key(x, y, z)) === b) this.occ.delete(this._key(x, y, z));
   }
 
-  _plain(b) { return { type: b.type, x: b.x, y: b.y, z: b.z, rot: b.rot, surf: b.surf }; }
+  _plain(b) {
+    if (b.kind === 'hangar') return { kind: 'hangar', x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1 };
+    if (b.kind === 'decor') return { kind: 'decor', type: b.type, x: b.x, z: b.z, rot: b.rot };
+    return { type: b.type, x: b.x, y: b.y, z: b.z, rot: b.rot, surf: b.surf };
+  }
 
-  _find(p) { return this.blocks.find((b) => b.type === p.type && b.x === p.x && b.y === p.y && b.z === p.z && b.rot === p.rot); }
+  _find(p) {
+    if (p.kind === 'hangar') return this.hangars.find((h) => h.x0 === p.x0 && h.z0 === p.z0 && h.x1 === p.x1 && h.z1 === p.z1);
+    if (p.kind === 'decor') return this.decor.find((d) => d.type === p.type && d.x === p.x && d.z === p.z);
+    return this.blocks.find((b) => b.type === p.type && b.x === p.x && b.y === p.y && b.z === p.z && b.rot === p.rot);
+  }
 
   // apply an edit { add: [plain], remove: [plain] } and record it for undo
   _commit(edit, record = true) {
@@ -193,6 +247,7 @@ export class Editor {
       this.app.ui.toast('Track changed: drive it again to set the author time');
     }
     this.testBest = null; this.testGhost = null; this.testSplits = null;
+    this._refreshHangars();
     this._updatePorts();
     this._refreshInfo();
     this._updatePreview();
@@ -221,10 +276,15 @@ export class Editor {
   }
 
   place() {
+    if (this.cat === 'decor') { this.placeDecor(); return; }
+    if (this.cat === 'hangar') return;
     const c = this._candidate();
     if (!c) return;
     if (!this._fits(c)) { this.app.audio.denied(); return; }
     const remove = [];
+    // a block placed over decor replaces it
+    const cols = new Set(this._cells(c).map(([x, , z]) => x + ',' + z));
+    for (const d of this.decor) if (cols.has(d.x + ',' + d.z)) remove.push(this._plain(d));
     if (BLOCKS[c.type].feature === 'start') {
       for (const b of this.blocks) if (b.def?.feature === 'start' || BLOCKS[b.type].feature === 'start') remove.push(this._plain(b));
     }
@@ -233,10 +293,106 @@ export class Editor {
     this.autoRot = true;
   }
 
+  // right click / erase tool: what gets removed depends on the tab
+  eraseAt(e) {
+    if (this.cat === 'hangar') { this.eraseBlock(this._hangarAt(this.cursor)); return; }
+    if (this.cat === 'decor') { this.eraseBlock(this._decorAt(this.cursor) || this._pickDecor(e)); return; }
+    this.eraseBlock(this._pick(e));
+  }
+
   eraseBlock(b) {
     if (!b) { this.app.audio.denied(); return; }
     this._commit({ add: [], remove: [this._plain(b)] });
     this.app.audio.erase();
+  }
+
+  // ---- hangars and decor -------------------------------------------------------------------
+  _colFree(x, z) {
+    for (let y = 0; y <= MAX_LEVEL; y++) if (this.occ.has(this._key(x, y, z))) return false;
+    return true;
+  }
+
+  _hangarAt(c) { return c ? this.hangars.find((h) => c.x >= h.x0 && c.x <= h.x1 && c.z >= h.z0 && c.z <= h.z1) : null; }
+
+  _decorAt(c) { return c ? this.decor.find((d) => d.x === c.x && d.z === c.z) : null; }
+
+  _pickDecor(e) {
+    if (!e) return null;
+    this._ndc(e);
+    const hits = _ray.intersectObjects(this.decor.map((d) => d.mesh), true);
+    return hits.length ? hits[0].object.userData.decor : null;
+  }
+
+  _decorFits(type, x, z) {
+    if (x < GRID_MIN || x > GRID_MAX || z < GRID_MIN || z > GRID_MAX) return false;
+    if (!this._colFree(x, z) || this._decorAt({ x, z })) return false;
+    return !(DECOR[type].tall && this._hangarAt({ x, z }));
+  }
+
+  placeDecor() {
+    const c = this.cursor;
+    if (!c || !this._decorFits(this.decorType, c.x, c.z)) { this.app.audio.denied(); return; }
+    this._commit({ add: [{ kind: 'decor', type: this.decorType, x: c.x, z: c.z, rot: this.rot }], remove: [] });
+    this.app.audio.place();
+  }
+
+  _decorMesh(type, x, z, rot) {
+    const buf = new GeoBuffer();
+    buildDecor(buf, type, 0, 0, rot, decorSeed(type, x, z));
+    const mesh = buildBufferMesh(buf, this.app.materials);
+    mesh.position.set(x * CELL, 0, z * CELL);
+    return mesh;
+  }
+
+  _rect(a, b) {
+    return { x0: Math.min(a.x, b.x), z0: Math.min(a.z, b.z), x1: Math.max(a.x, b.x), z1: Math.max(a.z, b.z) };
+  }
+
+  _hangarProblem(r, ignore = null) {
+    const w = r.x1 - r.x0 + 1, d = r.z1 - r.z0 + 1;
+    if (w < 2 || d < 2) return 'Drag over at least 2×2 cells.';
+    if (w > MAX_HANGAR_SIDE || d > MAX_HANGAR_SIDE) return `A hangar can be at most ${MAX_HANGAR_SIDE} cells long.`;
+    if (this.hangars.some((h) => h !== ignore && r.x0 <= h.x1 && r.x1 >= h.x0 && r.z0 <= h.z1 && r.z1 >= h.z0)) return 'Hangars cannot overlap.';
+    if (this.hangars.length >= MAX_HANGARS) return `At most ${MAX_HANGARS} hangars per track.`;
+    return null;
+  }
+
+  finishHangarDrag() {
+    const drag = this.hangarDrag;
+    this.hangarDrag = null;
+    if (!drag || !this.cursor) { this._updatePreview(); return; }
+    const r = this._rect(drag, this.cursor);
+    const problem = this._hangarProblem(r);
+    if (problem) { this.app.audio.denied(); this.app.ui.toast(problem, 'error'); this._updatePreview(); return; }
+    // tall decor cannot stand under a roof
+    const remove = this.decor.filter((d) => DECOR[d.type].tall && d.x >= r.x0 && d.x <= r.x1 && d.z >= r.z0 && d.z <= r.z1).map((d) => this._plain(d));
+    this._commit({ add: [{ kind: 'hangar', ...r }], remove });
+    this.app.audio.place();
+  }
+
+  // translucent walls without a roof, so the track inside stays visible
+  _hangarMesh(r, color, opacity) {
+    const occ = occupancy(this.blocks);
+    const H = hangarHeight(r, occ);
+    const X0 = r.x0 * CELL - CELL / 2, X1 = r.x1 * CELL + CELL / 2, Z0 = r.z0 * CELL - CELL / 2, Z1 = r.z1 * CELL + CELL / 2;
+    const g = new THREE.Group();
+    const geo = new THREE.BoxGeometry(X1 - X0, H, Z1 - Z0);
+    geo.translate((X0 + X1) / 2, H / 2, (Z0 + Z1) / 2);
+    const walls = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide }));
+    walls.userData.ownMaterial = true;
+    walls.renderOrder = 4;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color }));
+    edges.userData.ownMaterial = true;
+    g.add(walls, edges);
+    return g;
+  }
+
+  _refreshHangars() {
+    for (const h of this.hangars) {
+      this._dispose(h.mesh);
+      h.mesh = this._hangarMesh(h, 0xf2b705, 0.1);
+      this.sceneryGroup.add(h.mesh);
+    }
   }
 
   // open ports (no neighbour) for markers and auto-rotation
@@ -288,9 +444,14 @@ export class Editor {
 
   // ---- preview -------------------------------------------------------------------------------
   _updatePreview() {
-    if (this.preview) { this.group.remove(this.preview); this.preview = null; }
+    if (this.preview) {
+      this.group.remove(this.preview);
+      if (this.preview.userData.scenery) this.preview.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.userData.ownMaterial) o.material.dispose(); });
+      this.preview = null;
+    }
     this.footMesh.count = 0;
     if (!this.cursor || this.tool !== 'place' || !this.active) return;
+    if (this.cat === 'hangar' || this.cat === 'decor') { this._sceneryPreview(); return; }
     this._autoRotate();
     const c = this._candidate();
     const ok = this._fits(c);
@@ -313,8 +474,45 @@ export class Editor {
     this._refreshInfo(true);
   }
 
+  _sceneryPreview() {
+    const c = this.cursor;
+    let ok, cells;
+    if (this.cat === 'hangar') {
+      const r = this.hangarDrag ? this._rect(this.hangarDrag, c) : { x0: c.x, z0: c.z, x1: c.x, z1: c.z };
+      ok = !this.hangarDrag || !this._hangarProblem(r);
+      if (this.hangarDrag) {
+        this.preview = this._hangarMesh(r, ok ? 0x32d67a : 0xff4d4d, 0.22);
+        this.preview.userData.scenery = true;
+        this.group.add(this.preview);
+      }
+      cells = [];
+      for (let x = r.x0; x <= r.x1; x++) for (let z = r.z0; z <= r.z1; z++) cells.push([x, z]);
+    } else {
+      ok = this._decorFits(this.decorType, c.x, c.z);
+      this.preview = this._decorMesh(this.decorType, c.x, c.z, this.rot);
+      this.preview.userData.scenery = true;
+      this.preview.traverse((o) => { if (o.isMesh) { o.material = this.previewMat; o.castShadow = false; o.renderOrder = 5; } });
+      this.previewMat.emissive.set(ok ? 0x32d67a : 0xff4d4d);
+      this.group.add(this.preview);
+      cells = [[c.x, c.z]];
+    }
+    this.footMat.color.set(ok ? 0x32d67a : 0xff4d4d);
+    const m = new THREE.Matrix4();
+    let n = 0;
+    for (const [x, z] of cells) {
+      if (n >= 256) break;
+      m.makeTranslation(x * CELL, 0.2, z * CELL);
+      this.footMesh.setMatrixAt(n++, m);
+    }
+    this.footMesh.count = n;
+    this.footMesh.instanceMatrix.needsUpdate = true;
+    this._refreshInfo(true);
+  }
+
+  _onGround() { return this.cat === 'hangar' || this.cat === 'decor'; }
+
   _updateGrid() {
-    this.grid.position.set(0, this.level * LEVEL + 0.06, 0);
+    this.grid.position.set(0, (this._onGround() ? 0 : this.level * LEVEL) + 0.06, 0);
   }
 
   // ---- camera ---------------------------------------------------------------------------------
@@ -372,6 +570,10 @@ export class Editor {
       if (!this.active) return;
       cv.setPointerCapture?.(e.pointerId);
       this.drag = { x: e.clientX, y: e.clientY, button: e.button, moved: false, shift: e.shiftKey, id: e.pointerId, touch: e.pointerType === 'touch' };
+      if (this.cat === 'hangar' && this.tool === 'place' && e.button === 0 && !e.shiftKey && !this.drag.touch) {
+        this._hover(e);
+        if (this.cursor) { this.hangarDrag = { x: this.cursor.x, z: this.cursor.z }; this._updatePreview(); }
+      }
       this.pointers = this.pointers || new Map();
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     });
@@ -384,7 +586,7 @@ export class Editor {
         const dx = e.clientX - d.x, dy = e.clientY - d.y;
         if (!d.moved && Math.hypot(dx, dy) > 5) d.moved = true;
         if (d.moved) {
-          const orbit = d.button === 2 || (d.touch && !d.shift);
+          const orbit = d.button === 2 || (d.touch && !d.shift && !this.hangarDrag);
           const pan = d.button === 1 || (d.button === 0 && d.shift);
           if (orbit) {
             this.cam.yaw -= dx * 0.006;
@@ -406,17 +608,18 @@ export class Editor {
       this.pointers?.delete(e.pointerId);
       const d = this.drag;
       this.drag = null;
+      if (this.hangarDrag && d && d.id === e.pointerId) { this._hover(e); this.finishHangarDrag(); return; }
       if (!d || d.moved || d.id !== e.pointerId) return;
       this._hover(e);
       if (d.button === 0 && !d.shift) {
-        if (this.tool === 'erase') this.eraseBlock(this._pick(e));
+        if (this.tool === 'erase') this.eraseAt(e);
         else this.place();
       } else if (d.button === 2) {
-        this.eraseBlock(this._pick(e));
+        this.eraseAt(e);
       }
     };
     cv.addEventListener('pointerup', up);
-    cv.addEventListener('pointercancel', (e) => { this.pointers?.delete(e.pointerId); this.drag = null; });
+    cv.addEventListener('pointercancel', (e) => { this.pointers?.delete(e.pointerId); this.drag = null; this.hangarDrag = null; });
     cv.addEventListener('wheel', (e) => {
       if (!this.active) return;
       e.preventDefault();
@@ -442,7 +645,7 @@ export class Editor {
 
   _hover(e) {
     this._ndc(e);
-    _plane.set(new THREE.Vector3(0, 1, 0), -(this.level * LEVEL + ROAD_Y));
+    _plane.set(new THREE.Vector3(0, 1, 0), this._onGround() ? 0 : -(this.level * LEVEL + ROAD_Y));
     const hit = _ray.ray.intersectPlane(_plane, _hit);
     let cur = null;
     if (hit) {
@@ -485,9 +688,10 @@ export class Editor {
       case 'KeyB': this.setTool('place'); break;
       case 'KeyT': this.test(); break;
       case 'Tab': e.preventDefault?.(); this.nextCategory(); break;
-      case 'Delete': case 'Backspace': if (this.lastPointer) this.eraseBlock(this._pick(this.lastPointer)); break;
+      case 'Delete': case 'Backspace': if (this.lastPointer) this.eraseAt(this.lastPointer); break;
       default:
         if (/^Digit[1-9]$/.test(code)) {
+          if (this.cat === 'decor') { const t = DECOR_TYPES[+code.slice(5) - 1]; if (t) this.selectDecor(t.id); break; }
           const list = BLOCK_LIST.filter((b) => b.cat === this.cat);
           const d = list[+code.slice(5) - 1];
           if (d) this.select(d.id);
@@ -525,22 +729,46 @@ export class Editor {
   select(id) {
     this.type = id;
     this.cat = BLOCKS[id].cat;
+    this.hangarDrag = null;
+    this._updateGrid();
     this.setTool('place');
     this._refreshPalette();
     this._updatePreview();
     this._refreshInfo();
   }
 
+  selectDecor(id) {
+    this.decorType = id;
+    this.setCategory('decor');
+  }
+
+  setCategory(id) {
+    this.cat = id;
+    this.hangarDrag = null;
+    if (id !== 'hangar' && id !== 'decor') {
+      const first = BLOCKS[this.type]?.cat === id ? BLOCKS[this.type] : BLOCK_LIST.find((b) => b.cat === id);
+      if (first) { this.select(first.id); return; }
+    }
+    this.setTool('place');
+    this._updateGrid();
+    this._refreshPalette();
+    this._updatePreview();
+    this._refreshInfo();
+  }
+
   nextCategory() {
-    const i = CATEGORIES.findIndex((c) => c.id === this.cat);
-    this.cat = CATEGORIES[(i + 1) % CATEGORIES.length].id;
-    const first = BLOCK_LIST.find((b) => b.cat === this.cat);
-    if (first) this.select(first.id);
+    const i = TABS.findIndex((c) => c.id === this.cat);
+    this.setCategory(TABS[(i + 1) % TABS.length].id);
   }
 
   // ---- track data -------------------------------------------------------------------------------
   data() {
-    return { name: this.meta.name, env: this.meta.env, blocks: this.blocks.map((b) => [b.type, b.x, b.y, b.z, b.rot, b.surf]) };
+    return {
+      name: this.meta.name, env: this.meta.env,
+      blocks: this.blocks.map((b) => [b.type, b.x, b.y, b.z, b.rot, b.surf]),
+      hangars: this.hangars.map((h) => [h.x0, h.z0, h.x1, h.z1]),
+      decor: this.decor.map((d) => [d.type, d.x, d.z, d.rot]),
+    };
   }
 
   counts() {
@@ -574,7 +802,8 @@ export class Editor {
     if (!c.blocks) { this.app.ui.toast('Nothing to save yet.', 'error'); return null; }
     this.meta.name = this.root.querySelector('#ed-name').value.trim() || 'Untitled track';
     if (!this.meta.id) this.meta.id = Records.newTrackId();
-    const entry = Records.saveTrack({ id: this.meta.id, name: this.meta.name, author: this.meta.author, env: this.meta.env, blocks: this.data().blocks, authorTime: this.authorTime });
+    const data = this.data();
+    const entry = Records.saveTrack({ id: this.meta.id, name: this.meta.name, author: this.meta.author, env: this.meta.env, blocks: data.blocks, hangars: data.hangars, decor: data.decor, authorTime: this.authorTime });
     this.dirty = false;
     this.app.ui.toast(`Saved “${entry.name}”${this.authorTime ? '' : ' (not validated yet)'}`);
     return entry;
@@ -594,12 +823,12 @@ export class Editor {
   }
 
   clearAll() {
-    if (!this.blocks.length) return;
+    if (!this.blocks.length && !this.hangars.length && !this.decor.length) return;
     this.app.ui.modal({
       title: 'Clear the track?',
-      body: '<p>Every block is removed. You can undo this with Ctrl+Z.</p>',
+      body: '<p>Every block, hangar and decor item is removed. You can undo this with Ctrl+Z.</p>',
       actions: [
-        { label: 'Clear', danger: true, onClick: () => { this._commit({ add: [], remove: this.blocks.map((b) => this._plain(b)) }); } },
+        { label: 'Clear', danger: true, onClick: () => { this._commit({ add: [], remove: [...this.blocks, ...this.hangars, ...this.decor].map((b) => this._plain(b)) }); } },
         { label: 'Cancel', primary: true },
       ],
     });
@@ -643,12 +872,13 @@ export class Editor {
         <div class="ed-palette" id="ed-palette"></div>
       </div>`;
     root.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-ed], [data-block], [data-cat], [data-tool], [data-surf], [data-lvl]');
+      const b = e.target.closest('[data-ed], [data-block], [data-decor], [data-cat], [data-tool], [data-surf], [data-lvl]');
       if (!b) return;
       this.app.audio.click();
       if (b.dataset.ed) this._ui(b.dataset.ed);
       else if (b.dataset.block) this.select(b.dataset.block);
-      else if (b.dataset.cat) { this.cat = b.dataset.cat; const f = BLOCK_LIST.find((x) => x.cat === this.cat); if (f) this.select(f.id); }
+      else if (b.dataset.decor) this.selectDecor(b.dataset.decor);
+      else if (b.dataset.cat) this.setCategory(b.dataset.cat);
       else if (b.dataset.tool) this.setTool(b.dataset.tool);
       else if (b.dataset.surf) { this.surf = b.dataset.surf; this._syncSurface(); this._updatePreview(); }
       else if (b.dataset.lvl) this.setLevel(this.level + +b.dataset.lvl);
@@ -684,12 +914,27 @@ export class Editor {
 
   _refreshPalette() {
     const tabs = this.root.querySelector('#ed-tabs');
-    tabs.innerHTML = CATEGORIES.map((c) => `<button class="tab" role="tab" data-cat="${c.id}" aria-selected="${c.id === this.cat}">${c.name}</button>`).join('') +
-      `<span class="spacer"></span>
+    tabs.innerHTML = TABS.map((c) => `<button class="tab" role="tab" data-cat="${c.id}" aria-selected="${c.id === this.cat}">${c.name}</button>`).join('') +
+      `<span class="spacer"></span>` +
+      (this._onGround() ? '' : `
        <div class="seg" id="ed-surfaces">${SURFACE_VARIANTS.map((s) => `<button data-surf="${s}" aria-pressed="${s === this.surf}">${SURF_LABEL[s]}</button>`).join('')}</div>
-       <div class="seg"><button data-lvl="-1" aria-label="Level down">Level −</button><button data-lvl="1" aria-label="Level up">Level +</button></div>
-       <div class="seg"><button class="ed-tool" data-tool="place" aria-pressed="${this.tool === 'place'}">Place</button><button class="ed-tool" data-tool="erase" aria-pressed="${this.tool === 'erase'}">Erase</button></div>`;
+       <div class="seg"><button data-lvl="-1" aria-label="Level down">Level −</button><button data-lvl="1" aria-label="Level up">Level +</button></div>`) +
+      `<div class="seg"><button class="ed-tool" data-tool="place" aria-pressed="${this.tool === 'place'}">Place</button><button class="ed-tool" data-tool="erase" aria-pressed="${this.tool === 'erase'}">Erase</button></div>`;
     const pal = this.root.querySelector('#ed-palette');
+    if (this.cat === 'hangar') {
+      pal.innerHTML = `
+        <button class="ed-block" aria-pressed="true" title="Hangar"><img src="${HANGAR_ICON}" alt=""><span>Hangar</span></button>
+        <div class="ed-hint">Drag on the ground to cover part of your track with a hangar.<br>Roads that cross its walls get gates, the roof height is automatic.<br>Right-click inside a hangar to remove it.</div>`;
+      return;
+    }
+    if (this.cat === 'decor') {
+      pal.innerHTML = DECOR_TYPES.map((d, i) => `
+        <button class="ed-block" data-decor="${d.id}" aria-pressed="${d.id === this.decorType}" title="${esc(d.name)} (${i + 1})">
+          ${this.thumbs['decor:' + d.id] ? `<img src="${this.thumbs['decor:' + d.id]}" alt="">` : '<span class="ph"></span>'}
+          <span>${esc(d.name)}</span>
+        </button>`).join('');
+      return;
+    }
     pal.innerHTML = BLOCK_LIST.filter((b) => b.cat === this.cat).map((b, i) => `
       <button class="ed-block" data-block="${b.id}" aria-pressed="${b.id === this.type}" title="${esc(b.name)} (${i + 1})">
         ${this.thumbs[b.id] ? `<img src="${this.thumbs[b.id]}" alt="">` : '<span class="ph"></span>'}
@@ -706,11 +951,15 @@ export class Editor {
     if (!this.built) return;
     const R = this.root;
     const def = BLOCKS[this.type];
-    R.querySelector('#ed-mode').textContent = this.tool === 'erase' ? 'Erasing' : 'Placing';
-    R.querySelector('#ed-sel').textContent = this.tool === 'erase' ? 'Click a block' : def.name;
-    R.querySelector('#ed-rot').textContent = `${this.rot * 90}°`;
-    R.querySelector('#ed-level').textContent = String(this.level);
-    R.querySelector('#ed-surf').textContent = def.surfaces ? SURF_LABEL[this.surf] : 'Road only';
+    const erase = this.tool === 'erase';
+    let sel = erase ? 'Click a block' : def.name;
+    if (this.cat === 'hangar') sel = erase ? 'Click a hangar' : 'Hangar: drag on the ground';
+    if (this.cat === 'decor') sel = erase ? 'Click a decor item' : DECOR[this.decorType].name;
+    R.querySelector('#ed-mode').textContent = erase ? 'Erasing' : 'Placing';
+    R.querySelector('#ed-sel').textContent = sel;
+    R.querySelector('#ed-rot').textContent = this.cat === 'hangar' ? '-' : `${this.rot * 90}°`;
+    R.querySelector('#ed-level').textContent = this._onGround() ? 'Ground' : String(this.level);
+    R.querySelector('#ed-surf').textContent = this._onGround() ? '-' : def.surfaces ? SURF_LABEL[this.surf] : 'Road only';
     if (light) return;
     const c = this.counts();
     const ok = (b, text) => `<span class="${b ? 'ok' : 'bad'}">${b ? '✓' : '✗'}</span> ${text}`;
@@ -719,6 +968,7 @@ export class Editor {
       ok(c.finish > 0, `Finish (${c.finish})`),
       `<span class="ok">•</span> Checkpoints: ${c.cp}`,
       `<span class="ok">•</span> Blocks: ${c.blocks} · open ends: ${c.open}`,
+      `<span class="ok">•</span> Hangars: ${this.hangars.length} · decor: ${this.decor.length}`,
       this.authorTime ? `<span class="ok">✓</span> Author time ${formatTime(this.authorTime)}` : '<span class="bad">✗</span> Not validated: finish a test drive',
     ].join('<br>');
   }
@@ -759,6 +1009,23 @@ export class Editor {
       ctx.drawImage(src, 0, src.height - H, W, H, 0, 0, W, H);
       this.thumbs[def.id] = canvas.toDataURL('image/jpeg', 0.85);
       scene.remove(mesh);
+    }
+    for (const d of DECOR_TYPES) {
+      const mesh = this._decorMesh(d.id, 0, 0, 1);
+      scene.add(mesh);
+      const box = new THREE.Box3().setFromObject(mesh);
+      const c = box.getCenter(new THREE.Vector3());
+      const rad = box.getSize(new THREE.Vector3()).length() / 2;
+      cam.position.copy(c).add(new THREE.Vector3(1, 0.6, 1.05).normalize().multiplyScalar(rad * 2.4));
+      cam.lookAt(c);
+      r.setViewport(0, 0, W / pr, H / pr);
+      r.setScissor(0, 0, W / pr, H / pr);
+      r.render(scene, cam);
+      const src = r.domElement;
+      ctx.drawImage(src, 0, src.height - H, W, H, 0, 0, W, H);
+      this.thumbs['decor:' + d.id] = canvas.toDataURL('image/jpeg', 0.85);
+      scene.remove(mesh);
+      mesh.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     }
     r.setScissorTest(false);
     const size = r.getSize(new THREE.Vector2());

@@ -42,8 +42,13 @@ back on the last checkpoint with the speed you had there.
 
 ## What's in it
 
-- **Campaign:** 10 tracks (day, sunset and night) with Bronze, Silver, Gold and
-  Author medals. Medal times come from validated AI runs.
+- **Campaign:** 11 tracks (day, sunset and night) with Bronze, Silver, Gold and
+  Author medals. Medal times come from validated AI runs. Track 11, *Hangar Run*,
+  is a technical track through a hangar.
+- **Industrial stadium:** hangars built over parts of the road (gates open
+  automatically where the road crosses a wall, dim inside with hanging lamps),
+  steel truss supports under raised road, and decor around every track: cranes,
+  container stacks, floodlights, LED screens, tanks, scaffolds, crates.
 - **Personal best ghost** and live checkpoint splits (blue = faster, red = slower).
 - **Surfaces:** asphalt, dirt, ice and grass, each with its own grip.
 - **Stunt blocks:** loops, wall rides, banked turns, kickers, platforms, turbo and
@@ -69,10 +74,30 @@ back on the last checkpoint with the speed you had there.
 | Move camera | W A S D |
 | Undo / redo | Ctrl+Z / Ctrl+Y |
 | Test drive | T |
+| Hangar | Hangar tab, drag a rectangle on the ground |
+| Decor | Decor tab, pick an item, click a free cell (R rotates) |
 
 Yellow arrows mark open road ends; hovering the cell in front of one turns the
 selected block to connect automatically. A track needs one Start and at least
 one Finish. Finish a test drive and choose *Use as author time* to validate it.
+
+Hangars cover at least 2×2 cells and at most 16 cells per side (up to 8 per
+track). The roof height follows the tallest block inside. A block placed on a
+decor cell replaces the decor; tall decor (cranes, screens...) can't stand under
+a hangar roof. Every track also gets automatic decor around it at race time.
+
+## Industrial scenery
+
+`src/track/scenery.js` builds hangars, decor and the steel truss supports as
+plain geometry with collision (so the physics and the AI tests see the same
+walls). Track data carries it as `hangars: [[x0, z0, x1, z1]]` and
+`decor: [[type, x, z, rot]]`; both are optional and saved in share codes.
+Hangar walls are made of one-cell, one-level panels; a panel is left open as a
+gate when track blocks sit on both sides of it at that level.
+`src/render/indoor.js` patches the standard materials: inside a hangar the sun
+and sky light fade out and the 24 lamps nearest the camera light the scene.
+Design notes: `docs/superpowers/specs/2026-09-25-industrial-scenery-design.md`,
+concept art: `assets/concept/map/`.
 
 ## Player car
 
@@ -110,14 +135,15 @@ styles/main.css       UI styles
 src/main.js           entry point
 src/app.js            renderer, scene, game modes and main loop
 src/config.js         world grid, physics rate, surfaces
-src/track/            block catalogue, geometry sweeps, track assembly,
-                      route for the AI, campaign builder and tracks, medals
+src/track/            block catalogue, geometry sweeps, track assembly, scenery
+                      (hangars, decor, supports), route for the AI, campaign
+                      builder and tracks, medals
 src/physics/          collision world (spatial hash) and the car model
 src/game/             race timing, ghosts, AI driver, records/storage
 src/render/           textures, materials, meshes, car views and model loading,
-                      sky/stadium, effects, cameras, post-processing
+                      sky/stadium, hangar lighting, effects, cameras, post-processing
 assets/models/        the player car model (.glb)
-assets/concept/       Higgsfield concept art the car was designed from
+assets/concept/       Higgsfield concept art for the car and (map/) the scenery
 tools/car/            car model generator, glTF writer, studio preview page
 src/audio/            synthesised engine, effects and music (Web Audio)
 src/input/            keyboard, gamepad and touch

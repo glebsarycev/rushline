@@ -59,5 +59,11 @@ export const CAMPAIGN_MEDALS = {
     "gold": 45280,
     "silver": 52400,
     "bronze": 64980
+  },
+  "c11": {
+    "author": 34660,
+    "gold": 37440,
+    "silver": 43330,
+    "bronze": 53730
   }
 };

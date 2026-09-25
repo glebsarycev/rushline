@@ -155,6 +155,25 @@ export const CAMPAIGN = [
       .finish()
       .build(),
   },
+  {
+    // technical: brake for the tight turns inside the hangar
+    id: 'c11', name: 'Hangar Run', env: 'day',
+    medals: null,
+    build: () => B().at(0, 0, 0, 0)
+      .start().straight(3)
+      .right(1).straight(1).left(1)
+      .straight(1).cp()
+      .left(1).straight(2).left(1)
+      .straight(1).right(1).right(1)
+      .up(2, 1).straight(1).right(2)
+      .straight(2).down(2, 1)
+      .right(1).left(1).straight(2).cp()
+      .left(3).straight(2)
+      .finish()
+      .hangar(-2, -10, 4, -4)
+      .prop('containers', 0, -6, 1).prop('crates', 1, -5).prop('containers', 2, -8).prop('crates', 0, -8)
+      .build(),
+  },
 ];
 
 for (const c of CAMPAIGN) c.medals = CAMPAIGN_MEDALS[c.id] || null;

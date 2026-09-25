@@ -1,11 +1,12 @@
 // A playable track: blocks placed on the grid, their connections, gameplay
 // features (spawn, checkpoints, finish, boosts), supports and collision.
 
-import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, SLAB, SURF } from '../config.js';
+import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, SLAB } from '../config.js';
 import { BLOCKS, worldPort, worldCells, worldFrame, rotXZ, portKey, vlerp, vnorm } from './blocks.js';
 import { blockGeometry, featureInfo, GeoBuffer } from './geometry.js';
 import { CollisionWorld } from '../physics/collision.js';
 import { computeRoute } from './route.js';
+import { buildScenery, trussPillar, parseHangars } from './scenery.js';
 
 // ---- transforms for placed blocks ---------------------------------------------------
 export function blockXform(b) {
@@ -153,12 +154,21 @@ export class Track {
     }
     if (!isFinite(minX)) { minX = -64; maxX = 64; minZ = -64; maxZ = 64; }
     this.bbox = { minX, maxX, minZ, maxZ, maxY };
+    // hangars and manual decor widen the stadium, not the track box
+    for (const h of parseHangars(this.data.hangars)) {
+      minX = Math.min(minX, h.x0 * CELL - HALF); maxX = Math.max(maxX, h.x1 * CELL + HALF);
+      minZ = Math.min(minZ, h.z0 * CELL - HALF); maxZ = Math.max(maxZ, h.z1 * CELL + HALF);
+    }
+    for (const d of this.data.decor || []) {
+      minX = Math.min(minX, d[1] * CELL - HALF); maxX = Math.max(maxX, d[1] * CELL + HALF);
+      minZ = Math.min(minZ, d[2] * CELL - HALF); maxZ = Math.max(maxZ, d[2] * CELL + HALF);
+    }
     const m = 96;
     this.stadium = { minX: minX - m, maxX: maxX + m, minZ: minZ - m, maxZ: maxZ + m };
     this.center = [(minX + maxX) / 2, 0, (minZ + maxZ) / 2];
   }
 
-  // Collision triangles for the whole track (blocks, caps, pillars)
+  // Collision triangles for the whole track (blocks, caps, pillars, hangars, decor)
   _collision() {
     const tris = [];
     for (const b of this.blocks) {
@@ -169,13 +179,14 @@ export class Track {
     const base = new CollisionWorld();
     base.setTriangles(tris);
     this.pillars = this._pillars(base);
-    const all = tris.concat(this.pillars.coll);
+    this.scenery = buildScenery(this);
+    const all = tris.concat(this.pillars.coll, this.scenery.buf.coll);
     this.world = new CollisionWorld();
     this.world.setTriangles(all);
     this.world.bounds = this.stadium;
   }
 
-  // Support pillars under elevated road, skipped where they would hit other road.
+  // Steel truss supports under elevated road, skipped where they would hit other road.
   _pillars(world) {
     const buf = new GeoBuffer();
     const hit = {};
@@ -198,9 +209,7 @@ export class Track {
         const r = 1.3;
         if (!clear(x, bottom - 0.05, z) || !clear(x - r, bottom - 0.05, z - r) || !clear(x + r, bottom - 0.05, z + r) ||
             !clear(x - r, bottom - 0.05, z + r) || !clear(x + r, bottom - 0.05, z - r)) continue;
-        buf.box('pillar', x, bottom / 2, z, 2.6, bottom, 2.6, SURF.WALL, 0.25);
-        buf.box('pillarBase', x, 0.2, z, 3.8, 0.4, 3.8, null, 0.25);
-        buf.box('pillarBase', x, bottom - 0.5, z, 3.4, 1.0, 3.4, null, 0.25);
+        trussPillar(buf, x, bottom, z);
       }
     }
     return buf;

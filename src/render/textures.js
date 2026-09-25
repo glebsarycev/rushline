@@ -220,6 +220,143 @@ export function graphite() {
   return toTex(c);
 }
 
+// ---- industrial scenery --------------------------------------------------------------
+// corrugated metal sheet: vertical ribs, horizontal panel seams, streaks of grime
+export function corrugated(base = '#8e969f', seed = 301) {
+  const W = 256, H = 256;
+  const [c, ctx] = canvas(W, H);
+  const rand = rng(seed);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, W, H);
+  for (let x = 0; x < W; x += 16) {
+    const g = ctx.createLinearGradient(x, 0, x + 16, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0.24)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.03)');
+    g.addColorStop(0.6, 'rgba(0,0,0,0.34)');
+    g.addColorStop(1, 'rgba(255,255,255,0.2)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, 16, H);
+  }
+  ctx.fillStyle = 'rgba(30,34,40,0.45)';
+  ctx.fillRect(0, 0, W, 3);
+  ctx.fillRect(0, H / 2, W, 2);
+  for (let i = 0; i < 26; i++) {
+    ctx.fillStyle = `rgba(${60 + rand() * 40 | 0},${50 + rand() * 20 | 0},${40},${0.05 + rand() * 0.1})`;
+    ctx.fillRect(rand() * W, rand() * H, 2 + rand() * 5, 30 + rand() * 120);
+  }
+  speckle(ctx, W, H, rand, 2500, ['#6f767e', '#c9ced4', '#8c7a66'], 1, 2, 0.25);
+  return toTex(c);
+}
+
+export function hazardStripes() {
+  const S = 128;
+  const [c, ctx] = canvas(S, S);
+  ctx.fillStyle = '#f2b705';
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = '#15171b';
+  for (let k = -2; k < 4; k++) {
+    ctx.beginPath();
+    ctx.moveTo(k * 64, S); ctx.lineTo(k * 64 + 32, S); ctx.lineTo(k * 64 + 32 + S, 0); ctx.lineTo(k * 64 + S, 0);
+    ctx.fill();
+  }
+  speckle(ctx, S, S, rng(307), 700, ['#6b5a2a', '#2b2b2b', '#fff3c4'], 1, 2.5, 0.25);
+  return toTex(c);
+}
+
+export function containerSide() {
+  const W = 256, H = 128;
+  const [c, ctx] = canvas(W, H);
+  const rand = rng(311);
+  ctx.fillStyle = '#d6d6d6';
+  ctx.fillRect(0, 0, W, H);
+  for (let x = 0; x < W; x += 12) {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(x + 7, 6, 4, H - 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(x + 2, 6, 3, H - 12);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, 0, W, 6); ctx.fillRect(0, H - 6, W, 6);
+  for (let i = 0; i < 18; i++) {
+    ctx.fillStyle = `rgba(110,70,40,${0.06 + rand() * 0.12})`;
+    ctx.fillRect(rand() * W, rand() * H, 3 + rand() * 10, 8 + rand() * 40);
+  }
+  return toTex(c);
+}
+
+export function crateWood() {
+  const S = 128;
+  const [c, ctx] = canvas(S, S);
+  const rand = rng(313);
+  ctx.fillStyle = '#a57c4a';
+  ctx.fillRect(0, 0, S, S);
+  for (let y = 0; y < S; y += 21) {
+    ctx.fillStyle = `rgba(60,36,14,${0.25 + rand() * 0.2})`;
+    ctx.fillRect(0, y, S, 2);
+  }
+  ctx.strokeStyle = '#6b4a24';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(5, 5, S - 10, S - 10);
+  ctx.beginPath(); ctx.moveTo(8, 8); ctx.lineTo(S - 8, S - 8); ctx.stroke();
+  speckle(ctx, S, S, rand, 900, ['#7a5530', '#c49a64'], 1, 2, 0.35);
+  return toTex(c);
+}
+
+export function skylightPanes() {
+  const W = 128, H = 64;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = '#26303a';
+  ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#e9f4ff'); g.addColorStop(1, '#b9d4ec');
+  ctx.fillStyle = g;
+  for (let x = 4; x < W; x += 32) for (let y = 4; y < H; y += 30) ctx.fillRect(x, y, 26, 26);
+  return toTex(c);
+}
+
+export function grating() {
+  const S = 64;
+  const [c, ctx] = canvas(S, S);
+  ctx.fillStyle = '#2c3138';
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = '#7d858f';
+  for (let k = 0; k < S; k += 8) { ctx.fillRect(k, 0, 2, S); ctx.fillRect(0, k, S, 2); }
+  return toTex(c);
+}
+
+// big LED screen: the game's own graphics on a dark panel with a pixel grid
+export function ledScreen() {
+  const W = 1024, H = 512;
+  const [c, ctx] = canvas(W, H);
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, '#0d1422'); g.addColorStop(1, '#1b0d18');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#ff6b1a';
+  for (let i = 0; i < 7; i++) {
+    ctx.globalAlpha = 0.15 + i * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(60 + i * 44, H - 90); ctx.lineTo(120 + i * 44, 90); ctx.lineTo(150 + i * 44, 90); ctx.lineTo(90 + i * 44, H - 90);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = `italic 700 150px ${FONT_DISPLAY}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const tg = ctx.createLinearGradient(0, 160, 0, 330);
+  tg.addColorStop(0, '#ffe08a'); tg.addColorStop(1, '#ff8a1f');
+  ctx.fillStyle = tg;
+  ctx.fillText('RUSHLINE', 420, H / 2 - 20);
+  ctx.font = `600 44px ${FONT_DISPLAY}`;
+  ctx.fillStyle = '#9fd8ff';
+  ctx.fillText('FULL THROTTLE · NO LIMITS', 430, H / 2 + 88);
+  // pixel grid
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  for (let x = 0; x < W; x += 6) ctx.fillRect(x, 0, 1, H);
+  for (let y = 0; y < H; y += 6) ctx.fillRect(0, y, W, 1);
+  return toTex(c, { repeat: false });
+}
+
 // ---- ground --------------------------------------------------------------------------
 export function grass() {
   const W = 512, H = 512;
@@ -436,5 +573,15 @@ export function createTextures() {
     carbon: carbon(),
     dot: softDot(),
     clouds: clouds(),
+    corrugated: corrugated(),
+    roofMetal: corrugated('#737b84', 303),
+    hazard: hazardStripes(),
+    container: containerSide(),
+    crate: crateWood(),
+    skylight: skylightPanes(),
+    grating: grating(),
+    screen: ledScreen(),
+    floor: concrete('#8b9096', 67),
+    hangarSign: textPanel('RUSHLINE WORKS', '#ff8a1f', '#1b2027'),
   };
 }

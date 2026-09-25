@@ -85,6 +85,8 @@ export function newTrackId() {
 // share codes: base64 of compact JSON
 export function exportCode(t) {
   const data = { v: 1, n: t.name, a: t.author, e: t.env, m: t.authorTime || null, b: t.blocks };
+  if (t.hangars && t.hangars.length) data.h = t.hangars;
+  if (t.decor && t.decor.length) data.d = t.decor;
   const json = JSON.stringify(data);
   return 'RL1:' + btoa(unescape(encodeURIComponent(json)));
 }
@@ -93,5 +95,8 @@ export function importCode(code) {
   const s = code.trim().replace(/^RL1:/, '');
   const data = JSON.parse(decodeURIComponent(escape(atob(s))));
   if (!data || !Array.isArray(data.b)) throw new Error('This code does not contain a track.');
-  return { name: data.n || 'Imported track', author: data.a || 'Unknown', env: data.e || 'day', authorTime: data.m || null, blocks: data.b };
+  return {
+    name: data.n || 'Imported track', author: data.a || 'Unknown', env: data.e || 'day', authorTime: data.m || null, blocks: data.b,
+    hangars: Array.isArray(data.h) ? data.h : [], decor: Array.isArray(data.d) ? data.d : [],
+  };
 }

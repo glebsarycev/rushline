@@ -272,6 +272,7 @@ select:focus-visible, .text:focus-visible { outline: 2px solid var(--accent); ou
 .ed-block img, .ed-block .ph { width: 80px; height: 60px; object-fit: cover; background: #1a222d; display: block; }
 .ed-block[aria-pressed=true] { border-color: var(--accent); background: rgba(255, 182, 39, 0.12); }
 .ed-block:focus-visible { outline: 2px solid var(--accent); }
+.ed-hint { flex: 1; min-width: 220px; align-self: center; color: var(--muted); font-size: 14px; line-height: 1.45; padding: 4px 8px; }
 .ed-tool[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
 @media (max-width: 720px) {

@@ -14,6 +14,7 @@ import { buildTrackMesh, disposeGroup } from './render/trackMesh.js';
 import { CarView } from './render/carModel.js';
 import { GlbCarView } from './render/glbCarView.js';
 import { loadCarAsset } from './render/carAsset.js';
+import { IndoorLighting } from './render/indoor.js';
 import { Environment } from './render/environment.js';
 import { Particles, SkidMarks } from './render/effects.js';
 import { CameraRig } from './render/cameraRig.js';
@@ -67,6 +68,10 @@ export class App {
     }
     this.materials = createMaterials(this.textures);
     this.env = new Environment(renderer, this.scene, this.textures);
+    // hangar interiors: dim sun/sky inside, lamp light pools
+    this.indoor = new IndoorLighting();
+    for (const m of Object.values(this.materials)) this.indoor.patch(m);
+    this.indoor.patch(this.env.groundMat);
     this.post = new Post(renderer, this.scene, this.camera);
     this.rig = new CameraRig(this.camera);
     this.smoke = new Particles(1600, this.textures.dot, false);
@@ -87,6 +92,8 @@ export class App {
     this.ghostView = makeCar({ ghost: true });
     this.ghostView.object.visible = false;
     this.scene.add(this.ghostView.object);
+    this.indoor.patchObject(this.carView.object);
+    this.indoor.patchObject(this.ghostView.object);
     this.editor = new Editor(this);
 
     this.campaign = CAMPAIGN.map((def) => ({ ...def, data: { ...def.build(), env: def.env, name: def.name } }));
@@ -155,6 +162,8 @@ export class App {
     applyMaterialMood(this.materials, this.track.env);
     this.carView.setHeadlights(this.track.env === 'night');
     this.env.buildStadium(this.track);
+    this.indoor.setTrack(this.track);
+    this.indoor.setEnabled(true);
     this.skids.clear();
     this.smoke.clear();
     this.sparks.clear();
@@ -223,7 +232,7 @@ export class App {
     const t = Records.listTracks().find((x) => x.id === id);
     if (!t) return;
     const medals = t.authorTime ? Records.medalsFromAuthor(t.authorTime) : null;
-    this.playTrack({ id: t.id, name: t.name, data: { blocks: t.blocks, env: t.env, name: t.name }, medals, from: 'custom', sub: `By ${t.author || 'you'}` });
+    this.playTrack({ id: t.id, name: t.name, data: { blocks: t.blocks, hangars: t.hangars, decor: t.decor, env: t.env, name: t.name }, medals, from: 'custom', sub: `By ${t.author || 'you'}` });
   }
 
   playTrack(ctx) {
@@ -548,6 +557,7 @@ export class App {
       } else if (this.mode === 'race' || this.mode === 'menu') {
         this._simulate(dt);
         this._present(dt);
+        this.indoor.update(this.camera);
       }
       this.post.render(dt);
     } catch (err) {

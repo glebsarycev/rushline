@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { blockGeometry } from '../track/geometry.js';
 import { blockXform } from '../track/track.js';
 
-const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'curb', 'under', 'panelCP', 'panelStart', 'panelFinish']);
+const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'curb', 'under', 'panelCP', 'panelStart', 'panelFinish',
+  'hangarFloor', 'skylight', 'glassOut', 'sign', 'lamp', 'lampCool', 'stripOrange', 'beacon', 'screen']);
 
 function append(acc, mats, b) {
   for (const key in mats) {
@@ -57,9 +58,17 @@ export function buildTrackMesh(track, materials) {
     for (let i = 0; i < 2; i++) if (!b.links || !b.links[i]) append(acc, g.caps[i].mats, b);
   }
   if (track.pillars) append(acc, track.pillars.mats, null);
+  if (track.scenery) append(acc, track.scenery.buf.mats, null);
   const group = new THREE.Group();
   group.name = 'track';
   return toMeshes(acc, materials, group);
+}
+
+// Any GeoBuffer (scenery pieces in the editor), merged by material.
+export function buildBufferMesh(buf, materials) {
+  const acc = new Map();
+  append(acc, buf.mats, null);
+  return toMeshes(acc, materials, new THREE.Group());
 }
 
 // Single block in its local frame (editor). Geometry is cached per type/surface.

@@ -93,10 +93,11 @@ export class GeoBuffer {
   // axis aligned box in local coords (optionally skip bottom face)
   box(key, cx, cy, cz, sx, sy, sz, surf = SURF.WALL, uvScale = 0.25, skipBottom = true) {
     const x0 = cx - sx / 2, x1 = cx + sx / 2, y0 = cy - sy / 2, y1 = cy + sy / 2, z0 = cz - sz / 2, z1 = cz + sz / 2;
+    // u runs along the face horizontally, v upwards (or along z on top)
     const faces = [
-      [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1], [1, 0, 0], sz, sy],
-      [[x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [x0, y0, z0], [-1, 0, 0], sz, sy],
-      [[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [0, 1, 0], sx, sz],
+      [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0], sz, sy],
+      [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0], sz, sy],
+      [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], sx, sz],
       [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], sx, sy],
       [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], sx, sy],
     ];
@@ -110,7 +111,39 @@ export class GeoBuffer {
   flat(key, a, b, c, d, n, uv0 = [0, 0], uv1 = [1, 1], surf = null) {
     this.quad(key, a, b, c, d, n, n, n, n, [uv0[0], uv0[1]], [uv1[0], uv0[1]], [uv1[0], uv1[1]], [uv0[0], uv1[1]], surf, n);
   }
+  // square-section bar from a to b (truss members, braces, cables); no end faces
+  beam(key, a, b, w, h = w, surf = null) {
+    const d = vsub(b, a);
+    const len = vlen(d);
+    if (len < 1e-6) return;
+    const f = vscale(d, 1 / len);
+    const side = Math.abs(f[1]) > 0.95 ? [1, 0, 0] : vnormalize(vcross(f, [0, 1, 0]));
+    const up = vcross(side, f);
+    const hs = vscale(side, w / 2), hu = vscale(up, h / 2);
+    const corner = (p, s, u) => vadd(vadd(p, vscale(hs, s)), vscale(hu, u));
+    const faces = [[side, 1, -1, 1, 1, h], [vscale(side, -1), -1, 1, -1, -1, h], [up, 1, 1, -1, 1, w], [vscale(up, -1), -1, -1, 1, -1, w]];
+    for (const [n, s0, u0, s1, u1, width] of faces) {
+      const p0 = corner(a, s0, u0), p1 = corner(a, s1, u1), p2 = corner(b, s1, u1), p3 = corner(b, s0, u0);
+      this.quad(key, p0, p1, p2, p3, n, n, n, n, [0, 0], [width * 0.25, 0], [width * 0.25, len * 0.25], [0, len * 0.25], surf, n);
+    }
+  }
+  // vertical cylinder (side + top), base at y0
+  cylinder(key, cx, y0, cz, r, h, seg = 16, surf = null, uvScale = 0.25) {
+    const y1 = y0 + h;
+    const circ = 2 * Math.PI * r;
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+      const n0 = [Math.cos(a0), 0, Math.sin(a0)], n1 = [Math.cos(a1), 0, Math.sin(a1)];
+      const p0 = [cx + n0[0] * r, y0, cz + n0[2] * r], p1 = [cx + n1[0] * r, y0, cz + n1[2] * r];
+      const u0 = (i / seg) * circ * uvScale, u1 = ((i + 1) / seg) * circ * uvScale;
+      this.quad(key, p0, p1, [p1[0], y1, p1[2]], [p0[0], y1, p0[2]], n0, n1, n1, n0, [u0, 0], [u1, 0], [u1, h * uvScale], [u0, h * uvScale], surf, vadd(n0, n1));
+      this.tri(key, [cx, y1, cz], [p0[0], y1, p0[2]], [p1[0], y1, p1[2]], [0, 1, 0], [0, 1, 0], [0, 1, 0],
+        [0.5, 0.5], [0.5 + n0[0] * 0.5, 0.5 + n0[2] * 0.5], [0.5 + n1[0] * 0.5, 0.5 + n1[2] * 0.5], surf, [0, 1, 0]);
+    }
+  }
 }
+
+const vnormalize = (a) => { const l = vlen(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 const pointOn = (fr, u, v) => vadd(fr.p, vadd(vscale(fr.r, u), vscale(fr.u, v)));
 const normalOn = (fr, nu, nv) => vadd(vscale(fr.r, nu), vscale(fr.u, nv));
