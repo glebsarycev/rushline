@@ -7,7 +7,7 @@ import { clamp, approach } from '../util/math.js';
 
 export const CAR = {
   mass: 1000,
-  inertia: [2000, 2400, 950], // local x (pitch), y (yaw), z (roll)
+  inertia: [2000, 2150, 950], // local x (pitch), y (yaw), z (roll)
   wheelRadius: 0.42,
   suspRest: 0.36,
   suspTravel: 0.27,
@@ -32,21 +32,21 @@ export const CAR = {
     [0, 0.06, -0.05, 0.38], // cockpit canopy (top ~0.44 m above the centre of mass)
     [0, 0.42, 2.2, 0.26], // rear wing
   ],
-  mu: 2.5,
-  accel0: 17,
-  vmax: 108,
+  mu: 2.85,
+  accel0: 19.5,
+  vmax: 118,
   accelExp: 0.85,
   brakeDecel: 24,
   reverseAccel: 9,
   reverseMax: 17,
   coastDecel: 0.8,
   drag: 0.11,
-  downforce: 2.0,
+  downforce: 2.7,
   driveFront: 0.35,
   brakeFront: 0.6,
-  steerMax: 0.56,
-  steerRate: 7.5,
-  steerReturn: 11,
+  steerMax: 0.6,
+  steerRate: 9,
+  steerReturn: 13,
   rollFactor: 0.8,
   hullInvIScale: 0.45,
   hullRestitution: 0.12,
@@ -172,7 +172,7 @@ export class Vehicle {
     const P = this.P;
     v = Math.abs(v);
     const aGrip = P.mu * GRAVITY * (1 + (P.downforce * v * v) / (P.mass * GRAVITY)) * 0.92;
-    const lim = Math.atan((P.wheelbase * aGrip) / Math.max(v * v, 1)) * 1.15;
+    const lim = Math.atan((P.wheelbase * aGrip) / Math.max(v * v, 1)) * 1.22;
     return Math.min(P.steerMax, lim);
   }
 

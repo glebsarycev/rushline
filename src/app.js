@@ -8,6 +8,7 @@ import { CAMPAIGN } from './track/campaign.js';
 import { Race } from './game/race.js';
 import { Bot } from './game/bot.js';
 import * as Records from './game/records.js';
+import { load as loadStore, save as saveStore } from './util/storage.js';
 import { createTextures } from './render/textures.js';
 import { createMaterials, applyMaterialMood } from './render/materials.js';
 import { buildTrackMesh, disposeGroup } from './render/trackMesh.js';
@@ -28,6 +29,13 @@ import { clamp, formatTime } from './util/math.js';
 const _right = new THREE.Vector3(), _fwd = new THREE.Vector3(), _up = new THREE.Vector3();
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion();
 
+// Render tiers from sharpest to cheapest. On a retina screen, 4x MSAA on the
+// full-size HDR target costs more than everything else in the frame.
+function renderTiers(dpr) {
+  if (dpr < 1.4) return [{ pr: 1, samples: 4 }, { pr: 1, samples: 2 }, { pr: 1, samples: 0 }];
+  return [{ pr: 2, samples: 4 }, { pr: 1.5, samples: 2 }, { pr: 1.5, samples: 0 }, { pr: 1.25, samples: 0 }, { pr: 1, samples: 0 }];
+}
+
 export class App {
   constructor(canvas, uiRoot) {
     this.canvas = canvas;
@@ -45,6 +53,8 @@ export class App {
     this.frameFx = { impact: 0, landing: 0, scrape: 0 };
     this.attractIndex = 0;
     this.fps = { frames: 0, t: 0 };
+    // automatic quality: the tier reached is kept for the next visit
+    this.perf = { tier: loadStore('perf.tier', 0) | 0, quality: null, acc: 0, n: 0, hold: 3 };
     this.touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   }
 
@@ -116,12 +126,17 @@ export class App {
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     const q = this.settings.quality;
-    const pr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'medium' ? 1.5 : 1);
+    const dpr = window.devicePixelRatio || 1;
+    const tiers = renderTiers(dpr);
+    const base = q === 'low' ? tiers.length - 1 : q === 'medium' ? Math.min(2, tiers.length - 1) : 0;
+    const tier = tiers[Math.min(tiers.length - 1, Math.max(base, this.perf.tier))];
+    const pr = Math.min(dpr, tier.pr);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.post.setSize(w, h);
+    this.post.setSamples(tier.samples);
     const scale = (h * pr) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)));
     this.smoke.material.uniforms.uScale.value = scale;
     this.sparks.material.uniforms.uScale.value = scale;
@@ -132,6 +147,9 @@ export class App {
     Records.saveSettings(s);
     this.audio.setVolumes({ master: s.master, sfx: s.sfx, engine: s.engine, music: s.music });
     if (this.renderer) {
+      // picking a quality by hand restarts the automatic tuning from there
+      if (this.perf.quality && this.perf.quality !== s.quality) { this.perf.tier = 0; saveStore('perf.tier', 0); }
+      this.perf.quality = s.quality;
       this.post.enabled = s.bloom && s.quality !== 'low';
       this.env.setShadowQuality(s.quality === 'low' ? 'low' : s.quality === 'medium' ? 'medium' : 'high');
       this.resize();
@@ -164,6 +182,7 @@ export class App {
     this.env.buildStadium(this.track);
     this.indoor.setTrack(this.track);
     this.indoor.setEnabled(true);
+    this.perf.hold = 2; // shaders and textures warm up after a track change
     this.skids.clear();
     this.smoke.clear();
     this.sparks.clear();
@@ -546,8 +565,10 @@ export class App {
   // ---- frame loop ---------------------------------------------------------------------------
   _frame = (now) => {
     requestAnimationFrame(this._frame);
-    const dt = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
+    const raw = Math.max(0, (now - this.last) / 1000);
+    const dt = Math.min(0.1, raw);
     this.last = now;
+    this._watchPerf(raw);
     this.input.pollGamepad();
     this.fps.frames++; this.fps.t += dt;
     if (this.fps.t >= 0.5) { if (this.settings.showFps) this.ui.setFps(Math.round(this.fps.frames / this.fps.t)); this.fps.frames = 0; this.fps.t = 0; }
@@ -565,6 +586,23 @@ export class App {
       if (!this.crashed) { this.crashed = true; this.ui.toast('Something went wrong: ' + err.message, 'error'); }
     }
   };
+
+  // step the render tier down while frames keep taking longer than ~20 ms
+  _watchPerf(raw) {
+    const P = this.perf;
+    if ((this.mode !== 'race' && this.mode !== 'menu') || this.paused || raw > 0.25) { P.acc = 0; P.n = 0; return; }
+    if (P.hold > 0) { P.hold -= raw; return; }
+    P.acc += raw; P.n++;
+    if (P.acc < 1.5) return;
+    const avg = P.acc / P.n;
+    P.acc = 0; P.n = 0;
+    if (avg > 0.0205 && P.tier < renderTiers(window.devicePixelRatio || 1).length - 1) {
+      P.tier++;
+      saveStore('perf.tier', P.tier);
+      P.hold = 1;
+      this.resize();
+    }
+  }
 
   _simulate(dt) {
     if (this.paused || !this.race || this.frozen) return;

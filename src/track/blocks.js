@@ -227,7 +227,7 @@ def('loop', { name: 'Loop Right', cat: 'stunt', guided: { lateral: 3, damp: 3.5,
 def('loopL', { name: 'Loop Left', cat: 'stunt', guided: { lateral: 3, damp: 3.5, yaw: 6, stick: 6 }, path: () => loopPath(-1), ports: [SOUTH_IN(), P(-CELL, 0, -HALF - CELL, 0)] });
 def('bank2', { name: 'Banked Curve', cat: 'stunt', path: () => curvePath(2, 0.42, 0, 0), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
 def('bank3', { name: 'Banked Sweeper', cat: 'stunt', path: () => curvePath(3, 0.5, 0, 0), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
-def('wallride', { name: 'Wall Ride', cat: 'stunt', guided: { lateral: 1.6, damp: 2.4, yaw: 3, stick: 20, reach: 6, align: 5 }, path: () => curvePath(3, 1.05, 0.45, 0.45), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
+def('wallride', { name: 'Wall Ride', cat: 'stunt', guided: { lateral: 1.6, damp: 2.4, yaw: 3, stick: 30, reach: 8, align: 5 }, path: () => curvePath(3, 1.05, 0.45, 0.45), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
 
 // Open platform (no walls, connects on all four sides)
 def('platform', {

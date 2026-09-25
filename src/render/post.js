@@ -27,6 +27,13 @@ export class Post {
     this.composer.setSize(w, h);
   }
 
+  // MSAA samples of the HDR target (at full retina size this is the costly part)
+  setSamples(n) {
+    for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+      if (rt.samples !== n) { rt.samples = n; rt.dispose(); }
+    }
+  }
+
   setBloom(strength) {
     this.bloom.strength = strength;
   }
