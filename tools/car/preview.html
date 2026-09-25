@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Car Preview</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1d2229; color: #e8edf2; font: 14px/1.4 system-ui, sans-serif; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #hud { position: fixed; left: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+    #hud button { background: #2b323c; color: inherit; border: 1px solid #3c4552; padding: 6px 10px; cursor: pointer; }
+    #msg { position: fixed; left: 12px; top: 12px; }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "../../vendor/three/build/three.module.js", "three/addons/": "../../vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="msg">Loading…</div>
+  <div id="hud">
+    <button data-v="front">Front ¾</button><button data-v="side">Side</button><button data-v="rear">Rear ¾</button>
+    <button data-v="top">Top</button><button data-v="wheel">Wheel</button><button data-v="spin">Turntable</button>
+  </div>
+  <script type="module">
+    // Studio preview of the car model using the game's own GlbCarView.
+    // Dev tool: serve the project root and open /tools/car/preview.html
+    import * as THREE from 'three';
+    import { loadCarAsset } from '../../src/render/carAsset.js';
+    import { GlbCarView } from '../../src/render/glbCarView.js';
+
+    const canvas = document.getElementById('c');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.9;
+    renderer.shadowMap.enabled = true;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1d2229);
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
+
+    // studio: soft box lights baked into the environment + a key light with shadows
+    const studio = new THREE.Scene();
+    const room = new THREE.Mesh(new THREE.BoxGeometry(30, 14, 30), new THREE.MeshBasicMaterial({ color: 0x404650, side: THREE.BackSide }));
+    studio.add(room);
+    for (const [x, y, z, w, h, c] of [[0, 6.9, 0, 12, 12, 6], [-14.9, 4, 0, 8, 4, 3], [14.9, 4, 0, 8, 4, 3], [0, 4, 14.9, 10, 4, 2]]) {
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(c, c, c), side: THREE.DoubleSide }));
+      p.position.set(x, y, z);
+      p.lookAt(0, 0, 0);
+      studio.add(p);
+    }
+    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(studio, 0.03).texture;
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(4, 8, 3);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    Object.assign(key.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 });
+    scene.add(key);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshStandardMaterial({ color: 0x2a3038, roughness: 0.8 }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const views = {
+      front: [[-4.2, 1.5, -5.2], [0, 0.45, -0.2], 35],
+      side: [[-7.5, 1.0, 0], [0, 0.5, 0], 35],
+      rear: [[4.4, 1.9, 5.4], [0, 0.55, 0.4], 35],
+      top: [[0.01, 9.5, 0], [0, 0, 0], 40],
+      wheel: [[-2.6, 0.9, -2.8], [-0.93, 0.42, -1.38], 30],
+    };
+    let spin = false, car = null, t = 0, pose = { steer: 0, spin: 0, lift: 0 };
+    function setView(name) {
+      spin = name === 'spin';
+      const v = views[name] || views.front;
+      camera.position.fromArray(v[0]);
+      camera.lookAt(new THREE.Vector3().fromArray(v[1]));
+      camera.fov = v[2];
+      camera.updateProjectionMatrix();
+    }
+    window.setView = setView;
+    window.setPose = (p) => Object.assign(pose, p);
+    document.getElementById('hud').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); });
+
+    function resize() {
+      renderer.setSize(innerWidth, innerHeight, false);
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    addEventListener('resize', resize);
+    resize();
+    setView('front');
+
+    loadCarAsset('../../assets/models/rushline-racer.glb').then((asset) => {
+      car = new GlbCarView(asset, { color: '#ff3b30' });
+      scene.add(car.object);
+      let tris = 0;
+      car.object.traverse((o) => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
+      document.getElementById('msg').textContent = `rushline-racer.glb · ${tris} triangles`;
+      window.previewReady = true;
+    }).catch((err) => {
+      document.getElementById('msg').textContent = 'Failed: ' + err.message;
+      window.previewError = err.message;
+    });
+
+    const pos = new THREE.Vector3(0, 0.7655, 0), quat = new THREE.Quaternion();
+    renderer.setAnimationLoop((ms) => {
+      const dt = 1 / 60;
+      t += dt;
+      if (car) {
+        const len = 0.2955 - pose.lift;
+        car.update({ pos, quat, wheels: [0, 1, 2, 3].map(() => ({ len, spin: pose.spin })), steerAngle: pose.steer, brake: pose.brake || 0, boost: pose.boost || 0 }, dt);
+      }
+      if (spin) {
+        const a = t * 0.4;
+        camera.position.set(Math.sin(a) * 6.5, 1.6, Math.cos(a) * 6.5);
+        camera.lookAt(0, 0.5, 0);
+      }
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>

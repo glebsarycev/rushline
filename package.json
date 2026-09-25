@@ -8,6 +8,12 @@
     "start": "python3 -m http.server 8080",
     "test:physics": "node --import ./tests/hooks.mjs tests/physics.mjs",
     "test:tracks": "node --import ./tests/hooks.mjs tests/tracks.mjs",
-    "medals": "node --import ./tests/hooks.mjs tests/medals.mjs"
+    "medals": "node --import ./tests/hooks.mjs tests/medals.mjs",
+    "build:car": "node --import ./tests/hooks.mjs tools/car/build-car.mjs",
+    "test:browser": "node tests/browser/drive.mjs && node tests/browser/carfeatures.mjs && node tests/browser/car.mjs"
+  },
+  "devDependencies": {
+    "gltf-validator": "2.0.0-dev.3.10",
+    "puppeteer-core": "^25.12.0"
   }
 }

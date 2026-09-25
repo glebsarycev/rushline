@@ -12,6 +12,8 @@ import { createTextures } from './render/textures.js';
 import { createMaterials, applyMaterialMood } from './render/materials.js';
 import { buildTrackMesh, disposeGroup } from './render/trackMesh.js';
 import { CarView } from './render/carModel.js';
+import { GlbCarView } from './render/glbCarView.js';
+import { loadCarAsset } from './render/carAsset.js';
 import { Environment } from './render/environment.js';
 import { Particles, SkidMarks } from './render/effects.js';
 import { CameraRig } from './render/cameraRig.js';
@@ -71,9 +73,18 @@ export class App {
     this.sparks = new Particles(700, this.textures.dot, true);
     this.skids = new SkidMarks(5000);
     this.scene.add(this.smoke.points, this.sparks.points, this.skids.mesh);
-    this.carView = new CarView({ color: this.settings.color });
+    // player car: the glTF model, or the built-in procedural car if it can't be loaded
+    this.ui.showLoading(true, 'Loading the car');
+    try {
+      this.carAsset = await loadCarAsset();
+    } catch (err) {
+      console.warn('Car model unavailable, using the built-in car:', err && err.message ? err.message : err);
+      this.carAsset = null;
+    }
+    const makeCar = (opts) => (this.carAsset ? new GlbCarView(this.carAsset, opts) : new CarView(opts));
+    this.carView = makeCar({ color: this.settings.color });
     this.scene.add(this.carView.object);
-    this.ghostView = new CarView({ ghost: true });
+    this.ghostView = makeCar({ ghost: true });
     this.ghostView.object.visible = false;
     this.scene.add(this.ghostView.object);
     this.editor = new Editor(this);

@@ -116,7 +116,8 @@ export class CameraRig {
     if (cam.position.y < 0.6) cam.position.y = 0.6;
     this.up.lerp(WORLD_UP, 1 - Math.exp(-3 * dt)).normalize();
     cam.up.copy(this.up);
-    _look.copy(center).y += 0.6;
+    // aim below the car so it sits in the upper part of the frame, above the finish panel
+    _look.copy(center).y -= 2.0;
     cam.lookAt(_look);
     this.fov += (58 - this.fov) * (1 - Math.exp(-2 * dt));
     cam.fov = this.fov;
