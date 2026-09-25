@@ -1,0 +1,13 @@
+{
+  "name": "rushline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rushline: an arcade stunt time-attack racer for the browser (Three.js, no build step).",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test:physics": "node --import ./tests/hooks.mjs tests/physics.mjs",
+    "test:tracks": "node --import ./tests/hooks.mjs tests/tracks.mjs",
+    "medals": "node --import ./tests/hooks.mjs tests/medals.mjs"
+  }
+}

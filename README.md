@@ -1,0 +1,105 @@
+# Rushline
+
+An arcade stunt time-attack racer for the browser, in the spirit of block-built
+stadium racers: loops, kickers, wall rides, turbo pads, checkpoints, ghosts,
+medals and a block track editor. Everything (car, tracks, textures, sounds and
+music) is original and generated in code; the only library is Three.js.
+
+## Play
+
+**macOS:** double-click `start.command`. It starts a local server and opens the
+game in your browser. Keep the Terminal window open while you play.
+
+**Any system:** from this folder run
+
+```sh
+python3 -m http.server 8080
+```
+
+and open <http://localhost:8080>. The game needs to be served over http because
+it uses JavaScript modules; opening `index.html` directly from the file system
+won't work. An internet connection is only used for the UI fonts.
+
+## Controls
+
+| Action | Keyboard | Gamepad |
+| --- | --- | --- |
+| Accelerate | ↑ / W | RT or A |
+| Brake / reverse | ↓ / S / Space | LT or X |
+| Steer | ← → / A D | Left stick / d-pad |
+| Respawn at last checkpoint | Enter / Backspace | B |
+| Restart the run | R / Delete | Y |
+| Camera (close, far, hood) | C or 1 / 2 / 3 | RB / Back |
+| Ghost on/off | G | LB |
+| Pause | Esc / P | Start |
+| Mute | M | |
+
+On phones and tablets touch buttons appear during races.
+
+**Drifting:** tap the brake while steering at speed. A drift turns tighter than
+grip driving but costs speed. **Respawning** keeps the clock running and puts you
+back on the last checkpoint with the speed you had there.
+
+## What's in it
+
+- **Campaign:** 10 tracks (day, sunset and night) with Bronze, Silver, Gold and
+  Author medals. Medal times come from validated AI runs.
+- **Personal best ghost** and live checkpoint splits (blue = faster, red = slower).
+- **Surfaces:** asphalt, dirt, ice and grass, each with its own grip.
+- **Stunt blocks:** loops, wall rides, banked turns, kickers, platforms, turbo and
+  super turbo pads.
+- **Track editor:** place blocks on the grid, stack them in levels, pick road,
+  dirt or ice, test drive, set the author time by finishing your own track, save,
+  and share tracks as a text code (My tracks → Share / Import code).
+- **Menu attract mode:** the AI drives the campaign behind the menu with TV-style
+  cameras.
+- Settings for sound, graphics quality, glow, camera, units and car colour.
+  Records and custom tracks are stored in your browser (localStorage).
+
+## Track editor
+
+| Action | Input |
+| --- | --- |
+| Place block | Left click |
+| Delete block | Right click (or Erase tool) |
+| Rotate | R (Shift+R backwards) |
+| Level up / down | E / Q |
+| Surface road → dirt → ice | F |
+| Orbit / pan / zoom | Right-drag / Shift-drag / wheel |
+| Move camera | W A S D |
+| Undo / redo | Ctrl+Z / Ctrl+Y |
+| Test drive | T |
+
+Yellow arrows mark open road ends; hovering the cell in front of one turns the
+selected block to connect automatically. A track needs one Start and at least
+one Finish. Finish a test drive and choose *Use as author time* to validate it.
+
+## Project layout
+
+```
+index.html            page shell + import map
+styles/main.css       UI styles
+src/main.js           entry point
+src/app.js            renderer, scene, game modes and main loop
+src/config.js         world grid, physics rate, surfaces
+src/track/            block catalogue, geometry sweeps, track assembly,
+                      route for the AI, campaign builder and tracks, medals
+src/physics/          collision world (spatial hash) and the car model
+src/game/             race timing, ghosts, AI driver, records/storage
+src/render/           textures, materials, meshes, car, sky/stadium, effects,
+                      cameras, post-processing
+src/audio/            synthesised engine, effects and music (Web Audio)
+src/input/            keyboard, gamepad and touch
+src/ui/               menus, HUD, dialogs
+src/editor/           the block track editor
+vendor/three/         Three.js r186 (MIT licence)
+tests/                Node scripts for physics, tracks and medal times
+```
+
+## Tests (optional, need Node.js 22+)
+
+```sh
+npm run test:physics   # acceleration, braking, cornering, drift, loop, jump, wall hit
+npm run test:tracks    # the AI drives every campaign track
+npm run medals         # recompute campaign medal times into src/track/medals.js
+```

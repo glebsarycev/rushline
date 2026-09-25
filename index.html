@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Rushline</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b1016'/%3E%3Cpath d='M14 46 26 18h10l-12 28z' fill='%23ffb627'/%3E%3Cpath d='M32 46l12-28h8L40 46z' fill='%23ff6b1a'/%3E%3C/svg%3E">
+  <meta name="description" content="Rushline: an arcade stunt time-attack racer with a block track editor, ghosts and medals.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,400;0,500;0,600;0,700;1,600&family=Chakra+Petch:ital,wght@0,600;0,700;1,600;1,700&display=swap">
+  <link rel="stylesheet" href="styles/main.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/build/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="view" tabindex="0" aria-label="Game view"></canvas>
+    <div id="ui"></div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
