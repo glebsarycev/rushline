@@ -91,9 +91,13 @@ model always matches the simulation.
 - Nodes the game drives: `wheel_fl/fr/rl/rr` (steering and suspension pivots),
   `wheel_<id>_spin` (rolling), `arm_<id>_upper/lower` (suspension rods),
   `exhaust_l/r` (turbo flames) and `headlight_anchor` (night headlight).
-- Loading: `src/render/carAsset.js` loads it with Three.js `GLTFLoader` when the
-  game starts, and `src/render/glbCarView.js` renders the player car and the
-  ghost from it. If the model can't be loaded the game falls back to the
+- Loading: the game loads `assets/models/rushline-racer.glb.js`, the same GLB
+  bytes as a base64 ES module, and `src/render/carAsset.js` parses it with
+  Three.js `GLTFLoader` in memory (textures are decoded with
+  `createImageBitmap`). This works on pages with a strict Content-Security-Policy,
+  such as the published artifact, where the data:/blob: fetches `GLTFLoader`
+  normally makes are blocked. `src/render/glbCarView.js` renders the player car
+  and the ghost from it. If the model can't be loaded the game falls back to the
   built-in procedural car in `src/render/carModel.js`.
 - Rebuild after changing the design: `npm run build:car` (needs Node.js).
   `tools/car/preview.html` shows the model in a studio scene.
@@ -130,6 +134,6 @@ tests/                Node scripts for physics, tracks and medal times;
 npm run test:physics   # acceleration, braking, cornering, drift, loop, jump, wall hit
 npm run test:tracks    # the AI drives every campaign track
 npm run medals         # recompute campaign medal times into src/track/medals.js
-npm run build:car      # regenerate assets/models/rushline-racer.glb
+npm run build:car      # regenerate assets/models/rushline-racer.glb and .glb.js
 npm run test:browser   # drive the real game in headless Chrome (needs puppeteer-core)
 ```

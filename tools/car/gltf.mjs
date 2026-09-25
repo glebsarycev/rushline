@@ -169,19 +169,6 @@ export class GLTFBuilder {
 
   setRoots(indices) { this.json.scenes[0].nodes = indices; }
 
-  // same asset as plain glTF JSON with the binary buffer embedded as a data URI
-  // (for hosts that can't serve .glb files)
-  toEmbeddedJSON() {
-    const json = JSON.parse(JSON.stringify(this.json));
-    let bin = Buffer.concat(this.parts);
-    const pad = (4 - (bin.length % 4)) % 4;
-    if (pad) bin = Buffer.concat([bin, Buffer.alloc(pad)]);
-    json.buffers = [{ byteLength: bin.length, uri: 'data:application/octet-stream;base64,' + bin.toString('base64') }];
-    if (this.extensions.size) json.extensionsUsed = [...this.extensions];
-    for (const k of ['textures', 'images', 'samplers']) if (!json[k].length) delete json[k];
-    return JSON.stringify(json);
-  }
-
   toGLB() {
     const json = this.json;
     json.buffers = [{ byteLength: this.length }];
