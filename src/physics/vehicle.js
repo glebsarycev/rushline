@@ -32,7 +32,7 @@ export const CAR = {
     [0, 0.06, -0.05, 0.38], // cockpit canopy (top ~0.44 m above the centre of mass)
     [0, 0.42, 2.2, 0.26], // rear wing
   ],
-  mu: 2.85,
+  mu: 3.35,
   accel0: 19.5,
   vmax: 118,
   accelExp: 0.85,
@@ -41,17 +41,22 @@ export const CAR = {
   reverseMax: 17,
   coastDecel: 0.8,
   drag: 0.11,
-  downforce: 2.7,
+  downforce: 3.2,
+  groundEffect: 2.6, // downforce reach below the centre of mass (m)
   driveFront: 0.35,
   brakeFront: 0.6,
   steerMax: 0.6,
-  steerRate: 9,
-  steerReturn: 13,
+  steerGrip: 1.0, // full lock vs the grip limit (keyboards always use full lock)
+  steerRate: 12,
+  steerReturn: 16,
   rollFactor: 0.8,
   hullInvIScale: 0.45,
   hullRestitution: 0.12,
   hullFriction: 0.28,
   wallFriction: 0.6,
+  // brake + steer drift (TM style). Off: like PolyTrack, the car only slides when
+  // it is really driven past its grip.
+  brakeDrift: false,
   driftRearGrip: 0.6,
   driftAngle: 0.22,
   driftSteer: 0.12,
@@ -173,7 +178,7 @@ export class Vehicle {
     const P = this.P;
     v = Math.abs(v);
     const aGrip = P.mu * GRAVITY * (1 + (P.downforce * v * v) / (P.mass * GRAVITY)) * 0.92;
-    const lim = Math.atan((P.wheelbase * aGrip) / Math.max(v * v, 1)) * 1.22;
+    const lim = Math.atan((P.wheelbase * aGrip) / Math.max(v * v, 1)) * P.steerGrip;
     return Math.min(P.steerMax, lim);
   }
 
@@ -233,7 +238,7 @@ export class Vehicle {
     const speed = this.vel.length();
     this.slipAngle = speed > 3 ? Math.atan2(-vl, Math.max(Math.abs(vf), 0.5)) : 0;
     if (!this.drifting) {
-      if (!input.noDrift && this.grounded >= 3 && this.brake > 0.5 && Math.abs(target) > 0.5 && vf > 20) {
+      if (P.brakeDrift && !input.noDrift && this.grounded >= 3 && this.brake > 0.5 && Math.abs(target) > 0.5 && vf > 20) {
         this.drifting = true;
         this.driftDir = Math.sign(target);
         this.driftTime = 0;
@@ -308,7 +313,11 @@ export class Vehicle {
       _torque.add(_tmp);
     }
     const vf = vel.dot(_fwd);
-    if (grounded >= 2) _force.addScaledVector(_up, -P.downforce * vf * vf);
+    // downforce acts while track surface is right under the car, so crests don't
+    // throw it off at full speed; off a kicker the road ends and the car still flies
+    let pressed = grounded >= 2;
+    if (!pressed && vf > 20) pressed = this.world.raycast(pos.x, pos.y, pos.z, -_up.x, -_up.y, -_up.z, P.groundEffect, _hit, false);
+    if (pressed) _force.addScaledVector(_up, -P.downforce * vf * vf);
     _force.addScaledVector(vel, -P.drag * vel.length());
     if (this.boostTime > 0 && grounded >= 2) _force.addScaledVector(_fwd, P.mass * this.boostAccel);
 
@@ -520,7 +529,10 @@ export class Vehicle {
           newL *= k; newF *= k;
           sliding = true;
         }
-        if (it === 0) wh.sliding = sliding; else wh.sliding = wh.sliding || sliding;
+        // the first Gauss-Seidel pass sees every wheel's share of the turn at once and
+        // clamps spuriously; a wheel slides when the settled pass is at the limit AND
+        // the contact patch really moves sideways
+        if (it === 1) wh.sliding = sliding && wh.slipLat > 0.8;
         const dL = newL - wh.accL, dF = newF - wh.accF;
         wh.accL = newL; wh.accF = newF;
         _J.copy(_s).multiplyScalar(dL).addScaledVector(_f, dF);
@@ -552,7 +564,6 @@ export class Vehicle {
       let skid = 0;
       if (wh.contact) {
         skid = Math.max(skid, Math.min(1, (wh.slipLat - 2.5) / 7));
-        if (this.brake > 0.5 && this.fwdSpeed > 8 && !this.drifting) skid = Math.max(skid, 0.55);
         if (this.drifting && !wh.front) skid = Math.max(skid, 0.8);
         if (!wh.front && this.throttle > 0.5 && this.fwdSpeed < 10 && this.fwdSpeed > 0.5) skid = Math.max(skid, 0.6);
         if (wh.sliding) skid = Math.max(skid, 0.5);

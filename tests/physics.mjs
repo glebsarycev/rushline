@@ -15,8 +15,9 @@ function straightTrack(n = 40) {
 }
 
 function skidpad() {
-  const blocks = [['start', 0, 0, 12, 0]];
-  for (let x = -12; x <= 12; x++) for (let z = -12; z <= 11; z++) blocks.push(['platform', x, 0, z, 0]);
+  // start in the middle so turns in any direction stay on the pad
+  const blocks = [['start', 0, 0, 0, 0]];
+  for (let x = -20; x <= 20; x++) for (let z = -20; z <= 20; z++) if (x || z) blocks.push(['platform', x, 0, z, 0]);
   return new Track({ name: 'skidpad', blocks });
 }
 
@@ -94,37 +95,19 @@ for (const target of [12, 25, 40, 60]) {
   console.log(`[corner] target ${kmh(target)} km/h -> v=${kmh(v)} km/h radius=${f2(Math.abs(v / w))}m latAcc=${f2(Math.abs(v * w))} m/s2 (${f2(Math.abs(v * w) / 9.81)} g) slip=${f2(slip * 57.3)}deg maxRoll=${f2(maxRoll * 57.3)}deg`);
 }
 
-// 5b. drift vs grip turning radius at the same entry speed
-for (const mode of ['grip', 'drift']) {
+// 5. grip: full lock at speed and braking into a corner keep the car gripped
+// (no brake drift: the car only slides when it is really driven past its grip)
+for (const [name, v0, brakeT] of [['full-lock-150', 150, 0], ['full-lock-300', 300, 0], ['brake-in-corner-200', 200, 0.6]]) {
   const tr = skidpad();
-  const samples = [];
+  let maxSlip = 0, slide = 0, t0 = null;
   runRace(tr, (t, car) => {
-    if (t < 4.2) return { throttle: 1 };
-    const dt = t - 4.2;
-    if (dt > 0.4 && dt < 1.6) samples.push({ v: car.speed, w: car.angVel.y });
-    if (mode === 'drift' && dt < 0.2) return { brake: 1, steer: 1 };
-    return { throttle: 1, steer: 1 };
-  }, 6);
-  const v = samples.reduce((a, s) => a + s.v, 0) / samples.length;
-  const w = samples.reduce((a, s) => a + s.w, 0) / samples.length;
-  console.log(`[turn-${mode}] avg v=${kmh(v)} km/h radius=${f2(Math.abs(v / w))} m, speed after 1.6s=${kmh(samples[samples.length - 1].v)}`);
-}
-
-// 5. drift
-{
-  const tr = skidpad();
-  let log = [];
-  let spun = false;
-  runRace(tr, (t, car) => {
-    if (t < 5) return { throttle: 1 };
-    const dt = t - 5;
-    if (Math.abs(car.slipAngle) > 1.4) spun = true;
-    if (dt > 0 && Math.round(dt * 240) % 60 === 0) log.push(`${f2(dt)}s v=${kmh(car.speed)} slip=${f2(car.slipAngle * 57.3)} drift=${car.drifting ? 1 : 0}`);
-    if (dt < 0.25) return { brake: 1, steer: 1 };
-    if (dt < 3) return { throttle: 1, steer: 1 };
-    return { throttle: 1, steer: 0 };
-  }, 9);
-  console.log(`[drift] spun=${spun}\n  ` + log.join('\n  '));
+    if (t0 == null) { if (car.speed * 3.6 < v0) return { throttle: 1 }; t0 = t; }
+    const dt = t - t0;
+    if (dt > 0.1 && dt < 2) { maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle) * 57.3); if (car.wheels.some((w) => w.contact && w.sliding)) slide += PHYS_DT; }
+    return dt < brakeT ? { brake: 1, steer: 1 } : { throttle: 1, steer: 1 };
+  }, 14);
+  const ok = maxSlip < 5 && slide < 0.3;
+  console.log(`[grip] ${name}: max slip ${f2(maxSlip)} deg, sliding ${f2(slide)} s ${ok ? 'ok' : 'FAIL'}`);
 }
 
 // 6. loop
@@ -166,7 +149,7 @@ for (const mode of ['grip', 'drift']) {
     if (!hitV && car.impact > 0) hitV = car.speed;
     if (t < 4.35) return { throttle: 1, steer: 1 };
     after = car.speed;
-    return { throttle: 1, steer: 0 };
+    return { throttle: 1, steer: t < 5 ? -0.6 : 0 }; // steer away from the wall
   }, 7);
   const e = euler(race.car.quat);
   console.log(`[wall] speed at hit=${kmh(hitV)} after=${kmh(after)} maxAngVel=${f2(maxAng)} final x=${f2(race.car.pos.x)} y=${f2(race.car.pos.y)} roll=${f2(e.roll * 57.3)} pitch=${f2(e.pitch * 57.3)}`);

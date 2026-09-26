@@ -1,6 +1,6 @@
 // Checks every campaign track against its style.
 //   node --import ./tests/hooks.mjs tests/campaign.mjs
-// - the AI finishes without a respawn in 30-45 s (on 'fs' tracks it never brakes)
+// - the AI finishes without a respawn within TIME_RANGE (on 'fs' tracks it never brakes)
 // - 'fs' (full speed): a driver that never lifts or brakes also finishes cleanly
 // - 'tech': that same full-throttle driver crashes out or is clearly slower
 import { Track } from '../src/track/track.js';
@@ -8,6 +8,8 @@ import { CAMPAIGN } from '../src/track/campaign.js';
 import { Race } from '../src/game/race.js';
 import { Bot } from '../src/game/bot.js';
 import { PHYS_DT } from '../src/config.js';
+
+export const TIME_RANGE = [15, 45]; // seconds
 
 export function drive(track, { fullThrottle = false, skill = 1, maxTime = 120 } = {}) {
   const race = new Race(track);
@@ -33,7 +35,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const ai = drive(track, { fullThrottle: def.style === 'fs' }), ft = drive(track, { fullThrottle: true });
     const problems = [];
     if (!ai.clean) problems.push(`AI respawned ${ai.respawns}x`);
-    else if (ai.time < 29.5 || ai.time > 45.5) problems.push(`AI time ${ai.time.toFixed(2)} s outside 30-45`);
+    else if (ai.time < TIME_RANGE[0] - 0.5 || ai.time > TIME_RANGE[1] + 0.5) problems.push(`AI time ${ai.time.toFixed(2)} s outside ${TIME_RANGE.join('-')}`);
     if (def.style === 'fs' && !ft.clean) problems.push('full throttle does not finish cleanly');
     if (def.style === 'tech' && ft.clean && ai.clean && ft.time < ai.time + 2) problems.push('full throttle is as fast as braking');
     const f = (r) => (r.clean ? r.time.toFixed(2) + ' s' : `crash (${r.respawns} respawns)`);

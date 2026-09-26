@@ -36,9 +36,11 @@ won't work. An internet connection is only used for the UI fonts.
 
 On phones and tablets touch buttons appear during races.
 
-**Drifting:** tap the brake while steering at speed. A drift turns tighter than
-grip driving but costs speed. **Respawning** keeps the clock running and puts you
-back on the last checkpoint with the speed you had there.
+**Handling:** the car grips hard (up to ~7 g at speed) and only slides when it is
+really driven past its grip; there is no brake drift. Downforce holds it on crests
+while track surface is right below it, so it stays on the road over hills at full
+speed but still flies off kickers. **Respawning** keeps the clock running and puts you back
+on the last checkpoint with the speed you had there.
 
 ## What's in it
 
@@ -181,7 +183,7 @@ tests/                Node scripts for physics, tracks and medal times;
 ## Tests (optional, need Node.js 22+)
 
 ```sh
-npm run test:physics   # acceleration, braking, cornering, drift, loop, jump, wall hit
+npm run test:physics   # acceleration, braking, cornering, grip, loop, jump, wall hit
 npm run test:tracks    # the AI drives every campaign track
 npm run test:campaign  # each track matches its FS / TECH style and 30-45 s
 npm run medals         # recompute campaign medal times into src/track/medals.js

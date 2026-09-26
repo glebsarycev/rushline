@@ -182,7 +182,7 @@ export class UI {
             <div class="card">
               <h3>Tips</h3>
               <ul class="tips">
-                <li>Tap the brake while steering at speed to start a drift. Drifts turn tighter than grip, but cost speed.</li>
+                <li>The car grips hard and only slides when you really overdo a corner. Brake before the turn, not in it.</li>
                 <li>Checkpoints can be taken in any order, but you need all of them before the finish counts.</li>
                 <li>Respawning keeps the clock running and puts you back on the last checkpoint with the speed you had there.</li>
                 <li>Yellow pads give a short turbo, red pads a long one.</li>
