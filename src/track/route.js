@@ -2,10 +2,11 @@
 // mode camera and track validation. Follows block connections; after an open
 // kicker it searches for the landing block ahead.
 
-import { ROAD_Y } from '../config.js';
+import { ROAD_Y, CELL, LEVEL, HALF } from '../config.js';
 import { exitPort, worldFrame, DIRS, vsub, vdot, vlen, vnorm, vlerp, vcross, vscale, vadd } from './blocks.js';
 
 const STEP = 2;
+const PLAZA_MARGIN = 4;   // the racing line keeps this far from a plaza's open edge (m)
 
 function blockFrames(b, entry, exit) {
   const def = b.def;
@@ -95,7 +96,27 @@ export function computeRoute(track) {
   }
   if (raw.length < 2) return null;
 
-  // resample at uniform spacing
+  let pts = resample(raw);
+  // across plazas take the widest line the open floor allows, then resample again
+  if (smoothPlazas(track, pts)) pts = resample(pts.map((q) => ({ ...q, jump: q.air })));
+  const length = pts[pts.length - 1].s;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 2)], c = pts[Math.min(pts.length - 1, i + 2)];
+    const ds = c.s - a.s;
+    if (ds <= 0 || pts[i].air) continue;
+    // curvature is meaningless across the take-off / landing seam of a jump
+    let nearAir = false;
+    for (let k = Math.max(0, i - 3); k <= Math.min(pts.length - 1, i + 3); k++) if (pts[k].air) nearAir = true;
+    if (nearAir) { pts[i].nearAir = true; continue; }
+    const df = vscale(vsub(c.f, a.f), 1 / ds);
+    pts[i].k = vdot(df, pts[i].r);
+    pts[i].kv = vdot(df, pts[i].u);
+  }
+  return new Route(pts, length, finished);
+}
+
+// uniform STEP spacing; a raw point with `jump` starts an airborne segment
+function resample(raw) {
   const cum = [0];
   for (let i = 1; i < raw.length; i++) cum.push(cum[i - 1] + vlen(vsub(raw[i].p, raw[i - 1].p)));
   const length = cum[cum.length - 1];
@@ -111,19 +132,70 @@ export function computeRoute(track) {
     const r = vnorm(vcross(f, u));
     pts.push({ p: vlerp(a.p, c.p, t), f, u: vcross(r, f), r, s, air, k: 0, block: t < 0.5 ? a.block : c.block });
   }
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[Math.max(0, i - 2)], c = pts[Math.min(pts.length - 1, i + 2)];
-    const ds = c.s - a.s;
-    if (ds <= 0 || pts[i].air) continue;
-    // curvature is meaningless across the take-off / landing seam of a jump
-    let nearAir = false;
-    for (let k = Math.max(0, i - 3); k <= Math.min(pts.length - 1, i + 3); k++) if (pts[k].air) nearAir = true;
-    if (nearAir) { pts[i].nearAir = true; continue; }
-    const df = vscale(vsub(c.f, a.f), 1 / ds);
-    pts[i].k = vdot(df, pts[i].r);
-    pts[i].kv = vdot(df, pts[i].u);
+  return pts;
+}
+
+// Racing line over plazas: points on platform cells are relaxed towards a smooth,
+// wide arc (minimum-curvature style smoothing), clamped to stay PLAZA_MARGIN from
+// any open edge. The ends of each plaza run stay put so the line meets the road.
+function smoothPlazas(track, pts) {
+  const cells = new Set();
+  for (const b of track.blocks) if (b.def.profile === 'platform') cells.add(`${b.x},${b.y},${b.z}`);
+  if (!cells.size) return false;
+  const onPlaza = (q) => !q.air && q.block && q.block.def.profile === 'platform';
+  const has = (x, y, z) => cells.has(`${x},${y},${z}`);
+  const clamp = (p, level) => {
+    const cx = Math.round(p[0] / CELL), cz = Math.round(p[2] / CELL);
+    if (!has(cx, level, cz)) return null;
+    let lx = p[0] - cx * CELL, lz = p[2] - cz * CELL;
+    const lim = HALF - PLAZA_MARGIN;
+    if (lx > lim && !has(cx + 1, level, cz)) lx = lim;
+    if (lx < -lim && !has(cx - 1, level, cz)) lx = -lim;
+    if (lz > lim && !has(cx, level, cz + 1)) lz = lim;
+    if (lz < -lim && !has(cx, level, cz - 1)) lz = -lim;
+    // don't cut across a missing diagonal cell
+    if (Math.abs(lx) > lim && Math.abs(lz) > lim && !has(cx + Math.sign(lx), level, cz + Math.sign(lz))) {
+      if (Math.abs(lx) > Math.abs(lz)) lz = Math.sign(lz) * lim; else lx = Math.sign(lx) * lim;
+    }
+    return [cx * CELL + lx, p[1], cz * CELL + lz];
+  };
+  let changed = false;
+  let i = 0;
+  while (i < pts.length) {
+    if (!onPlaza(pts[i])) { i++; continue; }
+    let j = i;
+    while (j + 1 < pts.length && onPlaza(pts[j + 1]) && Math.abs(pts[j + 1].p[1] - pts[i].p[1]) < 0.5) j++;
+    const a = i + 3, b = j - 3; // keep the entry and exit points
+    if (b - a >= 4) {
+      const level = Math.round((pts[i].p[1] - ROAD_Y) / LEVEL);
+      const P = pts.map((q) => q.p.slice());
+      // bi-Laplacian (fourth difference) steps flatten the curvature, coarse to fine;
+      // plain averaging would pull the line straight and leave kinks at the ends
+      // the fixed road points around the plaza take part, so the line keeps their direction
+      const at = (k) => P[Math.min(P.length - 1, Math.max(0, k))];
+      for (const [K, iters] of [[8, 500], [4, 400], [2, 300], [1, 200]]) {
+        for (let it = 0; it < iters; it++) {
+          for (let k = a; k <= b; k++) {
+            const m2 = at(k - 2 * K), m1 = at(k - K), p1 = at(k + K), p2 = at(k + 2 * K), c0 = P[k];
+            const dx = m2[0] - 4 * m1[0] + 6 * c0[0] - 4 * p1[0] + p2[0];
+            const dz = m2[2] - 4 * m1[2] + 6 * c0[2] - 4 * p1[2] + p2[2];
+            const c = clamp([c0[0] - 0.06 * dx, c0[1], c0[2] - 0.06 * dz], level);
+            if (c) P[k] = c;
+          }
+        }
+      }
+      for (let k = a; k <= b; k++) pts[k].p = P[k];
+      for (let k = i; k <= j; k++) {
+        const f = vnorm(vsub(pts[Math.min(j + 1, pts.length - 1, k + 1)].p, pts[Math.max(i - 1, 0, k - 1)].p));
+        const u = [0, 1, 0];
+        const r = vnorm(vcross(f, u));
+        pts[k].f = f; pts[k].u = vcross(r, f); pts[k].r = r;
+      }
+      changed = true;
+    }
+    i = j + 1;
   }
-  return new Route(pts, length, finished);
+  return changed;
 }
 
 export class Route {

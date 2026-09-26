@@ -44,12 +44,14 @@ on the last checkpoint with the speed you had there.
 
 ## What's in it
 
-- **Campaign:** 10 multi-level tracks of 30-45 s (starts high up, spiral
-  climbs, platform runs, drops and jumps between levels), each marked **FS**
-  (full speed: never lift) or **TECH** (brake for the corners), with Bronze,
-  Silver, Gold and Author medals. `tests/campaign.mjs` checks every track against its style: the AI
-  finishes cleanly in 30-45 s, a never-lift driver finishes FS tracks cleanly and
-  crashes out of TECH ones. Medal times come from AI runs (`npm run medals`).
+- **Campaign:** 10 tracks. Hangar Run, then nine short PolyTrack-style tracks
+  (15-25 s): open plazas you cross on your own line, a fork with a risky jump
+  shortcut (Split Decision), half-pipes (Tube Rush), a wall-less sky deck, jumps
+  from plaza to plaza, an indoor drift yard and an indoor ice rink. Each track is
+  **FS** (full speed: never lift) or **TECH** (brake for the corners);
+  `tests/campaign.mjs` checks the style and the 15-25 s range. Bronze, Silver, Gold
+  and Author medals come from AI runs (`npm run medals`); on plazas the AI drives a
+  smoothed racing line (widest arc the open floor allows).
 - **Premium environment:** four times of day (morning, day, sunset, night) and
   four landscapes (mountains, city, sea, canyon) chosen per track; skies and
   landscapes are Higgsfield pictures, the stadium is a TM2020-style bowl with

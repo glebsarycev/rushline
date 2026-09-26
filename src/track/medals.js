@@ -6,58 +6,58 @@ export const CAMPAIGN_MEDALS = {
     "silver": 36880,
     "bronze": 45730
   },
-  "n02": {
-    "author": 28100,
-    "gold": 30350,
-    "silver": 35130,
-    "bronze": 43560
+  "p02": {
+    "author": 17700,
+    "gold": 19120,
+    "silver": 22130,
+    "bronze": 27440
   },
-  "n03": {
-    "author": 37140,
-    "gold": 40120,
-    "silver": 46430,
-    "bronze": 57570
+  "p04": {
+    "author": 15800,
+    "gold": 17070,
+    "silver": 19750,
+    "bronze": 24490
   },
-  "n04": {
-    "author": 33100,
-    "gold": 35750,
-    "silver": 41380,
-    "bronze": 51310
+  "p03": {
+    "author": 15510,
+    "gold": 16760,
+    "silver": 19390,
+    "bronze": 24050
   },
-  "n05": {
-    "author": 31700,
-    "gold": 34240,
-    "silver": 39630,
-    "bronze": 49140
+  "p06": {
+    "author": 18630,
+    "gold": 20130,
+    "silver": 23290,
+    "bronze": 28880
   },
-  "n06": {
-    "author": 30470,
-    "gold": 32910,
-    "silver": 38090,
-    "bronze": 47230
+  "p07": {
+    "author": 19410,
+    "gold": 20970,
+    "silver": 24270,
+    "bronze": 30090
   },
-  "n07": {
-    "author": 31070,
-    "gold": 33560,
-    "silver": 38840,
-    "bronze": 48160
+  "p05": {
+    "author": 21110,
+    "gold": 22800,
+    "silver": 26390,
+    "bronze": 32730
   },
-  "n08": {
-    "author": 32140,
-    "gold": 34720,
-    "silver": 40180,
-    "bronze": 49820
+  "p09": {
+    "author": 20280,
+    "gold": 21910,
+    "silver": 25350,
+    "bronze": 31440
   },
-  "n09": {
-    "author": 30250,
-    "gold": 32680,
-    "silver": 37820,
-    "bronze": 46890
+  "p08": {
+    "author": 18360,
+    "gold": 19830,
+    "silver": 22950,
+    "bronze": 28460
   },
-  "n10": {
-    "author": 35670,
-    "gold": 38530,
-    "silver": 44590,
-    "bronze": 55290
+  "p10": {
+    "author": 18740,
+    "gold": 20240,
+    "silver": 23430,
+    "bronze": 29050
   }
 };

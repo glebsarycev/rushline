@@ -9,7 +9,7 @@ import { Race } from '../src/game/race.js';
 import { Bot } from '../src/game/bot.js';
 import { PHYS_DT } from '../src/config.js';
 
-export const TIME_RANGE = [15, 45]; // seconds
+export const TIME_RANGE = [15, 25]; // seconds (a track can override it with `time`)
 
 export function drive(track, { fullThrottle = false, skill = 1, maxTime = 120 } = {}) {
   const race = new Race(track);
@@ -35,7 +35,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const ai = drive(track, { fullThrottle: def.style === 'fs' }), ft = drive(track, { fullThrottle: true });
     const problems = [];
     if (!ai.clean) problems.push(`AI respawned ${ai.respawns}x`);
-    else if (ai.time < TIME_RANGE[0] - 0.5 || ai.time > TIME_RANGE[1] + 0.5) problems.push(`AI time ${ai.time.toFixed(2)} s outside ${TIME_RANGE.join('-')}`);
+    else if (ai.time < (def.time || TIME_RANGE)[0] - 0.5 || ai.time > (def.time || TIME_RANGE)[1] + 0.5) problems.push(`AI time ${ai.time.toFixed(2)} s outside ${(def.time || TIME_RANGE).join('-')}`);
     if (def.style === 'fs' && !ft.clean) problems.push('full throttle does not finish cleanly');
     if (def.style === 'tech' && ft.clean && ai.clean && ft.time < ai.time + 2) problems.push('full throttle is as fast as braking');
     const f = (r) => (r.clean ? r.time.toFixed(2) + ' s' : `crash (${r.respawns} respawns)`);
