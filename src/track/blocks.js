@@ -4,7 +4,7 @@
 //  - `frames` is the road centreline, swept later into road geometry
 // Headings: 0 = north (-Z), 1 = east (+X), 2 = south (+Z), 3 = west (-X)
 
-import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, WALL_T, WALL_H, LOOP_R } from '../config.js';
+import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, WALL_T, WALL_H, LOOP_R, PIPE } from '../config.js';
 
 // ---- tiny vector helpers on [x, y, z] arrays ---------------------------------
 export const vadd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -168,7 +168,8 @@ function def(id, spec) {
 // occupied cells, found by sampling the swept road volume
 function computeCells(b) {
   const set = new Map();
-  const halfW = b.profile === 'platform' ? HALF - 0.6 : ROAD_HALF + WALL_T - 0.15;
+  const halfW = b.profile === 'platform' ? HALF - 0.6 : b.profile === 'pipe' ? PIPE.floor + PIPE.radius + PIPE.lip - 0.15 : ROAD_HALF + WALL_T - 0.15;
+  const tall = b.profile === 'pipe' ? PIPE.wall * 0.95 : WALL_H * 0.9;
   const fr = b.frames;
   const add = (pt) => {
     const cx = Math.floor((pt[0] + HALF) / CELL);
@@ -191,7 +192,7 @@ function computeCells(b) {
       if (i === fr.length - 2 && k === steps) p = vsub(p, vscale(f, 0.08));
       for (let w = -halfW; w <= halfW + 1e-6; w += halfW / 5) {
         add(vadd(p, vscale(r, w)));
-        if (b.profile !== 'platform') add(vadd(vadd(p, vscale(r, w)), vscale(u, WALL_H * 0.9)));
+        if (b.profile !== 'platform') add(vadd(vadd(p, vscale(r, w)), vscale(u, tall)));
       }
     }
   }
@@ -239,12 +240,23 @@ def('platform', {
   ports: [SOUTH_IN(), P(0, 0, -HALF, 0), P(HALF, 0, 0, 1), P(-HALF, 0, 0, 3)],
 });
 
+// Checkpoint and finish for plazas: a banner across the whole cell; side-by-side
+// cells form one wide gate (see mergeGates in track.js)
+def('cpPad', { name: 'Plaza Checkpoint', cat: 'platform', profile: 'platform', feature: 'cp', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0), P(HALF, 0, 0, 1), P(-HALF, 0, 0, 3)] });
+def('finishPad', { name: 'Plaza Finish', cat: 'platform', profile: 'platform', feature: 'finish', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0), P(HALF, 0, 0, 1), P(-HALF, 0, 0, 3)] });
+
+// Half-pipes: ride up the curved sides; above ~200 km/h the car holds on the walls
+def('pipe', { name: 'Half-Pipe', cat: 'pipe', profile: 'pipe', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0)] });
+def('pipe2', { name: 'Half-Pipe Curve', cat: 'pipe', profile: 'pipe', path: () => curvePath(2), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
+def('pipe3', { name: 'Half-Pipe Sweeper', cat: 'pipe', profile: 'pipe', path: () => curvePath(3), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
+
 export const CATEGORIES = [
   { id: 'road', name: 'Road' },
   { id: 'slope', name: 'Slopes' },
   { id: 'stunt', name: 'Stunts' },
   { id: 'special', name: 'Special' },
   { id: 'platform', name: 'Platform' },
+  { id: 'pipe', name: 'Pipes' },
 ];
 
 // For a block entered through `entry`, which port does the car leave through?

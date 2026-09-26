@@ -8,6 +8,7 @@
     "start": "python3 -m http.server 8080",
     "test:physics": "node --import ./tests/hooks.mjs tests/physics.mjs",
     "test:tracks": "node --import ./tests/hooks.mjs tests/tracks.mjs",
+    "test:pieces": "node --import ./tests/hooks.mjs tests/pieces.mjs",
     "test:campaign": "node --import ./tests/hooks.mjs tests/campaign.mjs",
     "medals": "node --import ./tests/hooks.mjs tests/medals.mjs",
     "build:car": "node --import ./tests/hooks.mjs tools/car/build-car.mjs",

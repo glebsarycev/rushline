@@ -6,6 +6,7 @@ import { CELL, LEVEL, ROAD_Y, GRID_MIN, GRID_MAX, MAX_LEVEL, SURFACE_VARIANTS } 
 import { BLOCKS, BLOCK_LIST, CATEGORIES, worldCells, worldPort, portKey, DIRS } from '../track/blocks.js';
 import { buildBlockMesh, buildBufferMesh } from '../render/trackMesh.js';
 import { GeoBuffer } from '../track/geometry.js';
+import { Track } from '../track/track.js';
 import { DECOR, DECOR_TYPES, buildDecor, decorSeed, hangarHeight, occupancy } from '../track/scenery.js';
 import { applyMaterialMood } from '../render/materials.js';
 import { ENV_PRESETS, ENV_IDS, LANDS, LAND_IDS } from '../render/environment.js';
@@ -44,6 +45,7 @@ export class Editor {
     this.rot = 0;
     this.level = 0;
     this.surf = 'road';
+    this.edge = 'wall';
     this.cat = 'road';
     this.tool = 'place';
     this.cursor = null;
@@ -100,7 +102,7 @@ export class Editor {
     if (entry) {
       this.meta = { id: entry.id, name: entry.name || 'Untitled track', author: entry.author || 'Me', env: entry.env || 'day', land: entry.land || 'mountains' };
       this.authorTime = entry.authorTime || null;
-      for (const b of entry.blocks) this._add({ type: b[0], x: b[1], y: b[2], z: b[3], rot: b[4] || 0, surf: b[5] || 'road' });
+      for (const b of entry.blocks) this._add({ type: b[0], x: b[1], y: b[2], z: b[3], rot: b[4] || 0, surf: b[5] || 'road', edge: b[6] === 'open' ? 'open' : 'wall' });
       for (const h of entry.hangars || []) this._add({ kind: 'hangar', x0: Math.min(h[0], h[2]), z0: Math.min(h[1], h[3]), x1: Math.max(h[0], h[2]), z1: Math.max(h[1], h[3]) });
       for (const d of entry.decor || []) if (DECOR[d[0]]) this._add({ kind: 'decor', type: d[0], x: d[1], z: d[2], rot: d[3] || 0 });
       this._refreshHangars();
@@ -196,7 +198,7 @@ export class Editor {
     }
     if (!BLOCKS[data.type]) return null;
     const b = { ...data };
-    b.mesh = buildBlockMesh(b.type, b.surf, this.app.materials);
+    b.mesh = buildBlockMesh(b.type, b.surf, this.app.materials, b.edge);
     b.mesh.position.set(b.x * CELL, b.y * LEVEL, b.z * CELL);
     b.mesh.rotation.y = (-b.rot * Math.PI) / 2;
     b.mesh.traverse((o) => { o.userData.block = b; });
@@ -224,7 +226,7 @@ export class Editor {
   _plain(b) {
     if (b.kind === 'hangar') return { kind: 'hangar', x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1 };
     if (b.kind === 'decor') return { kind: 'decor', type: b.type, x: b.x, z: b.z, rot: b.rot };
-    return { type: b.type, x: b.x, y: b.y, z: b.z, rot: b.rot, surf: b.surf };
+    return { type: b.type, x: b.x, y: b.y, z: b.z, rot: b.rot, surf: b.surf, edge: b.edge || 'wall' };
   }
 
   _find(p) {
@@ -273,7 +275,7 @@ export class Editor {
   // ---- placing ------------------------------------------------------------------------------
   _candidate() {
     if (!this.cursor) return null;
-    return { type: this.type, x: this.cursor.x, y: this.level, z: this.cursor.z, rot: this.rot, surf: BLOCKS[this.type].surfaces ? this.surf : 'road' };
+    return { type: this.type, x: this.cursor.x, y: this.level, z: this.cursor.z, rot: this.rot, surf: BLOCKS[this.type].surfaces ? this.surf : 'road', edge: BLOCKS[this.type].profile === 'road' ? this.edge : 'wall' };
   }
 
   place() {
@@ -456,7 +458,7 @@ export class Editor {
     this._autoRotate();
     const c = this._candidate();
     const ok = this._fits(c);
-    this.preview = buildBlockMesh(c.type, c.surf, this.app.materials);
+    this.preview = buildBlockMesh(c.type, c.surf, this.app.materials, c.edge);
     this.previewMat.emissive.set(ok ? 0x32d67a : 0xff4d4d);
     this.preview.traverse((o) => { if (o.isMesh) { o.material = this.previewMat; o.castShadow = false; o.renderOrder = 5; } });
     this.preview.position.set(c.x * CELL, c.y * LEVEL + 0.05, c.z * CELL);
@@ -685,6 +687,7 @@ export class Editor {
       case 'KeyE': case 'PageUp': this.setLevel(this.level + 1); break;
       case 'KeyQ': case 'PageDown': this.setLevel(this.level - 1); break;
       case 'KeyF': this.cycleSurface(); break;
+      case 'KeyV': this.setEdge(this.edge === 'open' ? 'wall' : 'open'); break;
       case 'KeyX': this.setTool(this.tool === 'erase' ? 'place' : 'erase'); break;
       case 'KeyB': this.setTool('place'); break;
       case 'KeyT': this.test(); break;
@@ -712,6 +715,13 @@ export class Editor {
     this._updateGrid();
     this._updatePreview();
     this._refreshInfo();
+  }
+
+  setEdge(e) {
+    this.edge = e;
+    this.root.querySelectorAll('[data-edge]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.edge === this.edge)));
+    this._updatePreview();
+    this._refreshInfo(true);
   }
 
   cycleSurface() {
@@ -766,7 +776,7 @@ export class Editor {
   data() {
     return {
       name: this.meta.name, env: this.meta.env, land: this.meta.land,
-      blocks: this.blocks.map((b) => [b.type, b.x, b.y, b.z, b.rot, b.surf]),
+      blocks: this.blocks.map((b) => (b.edge === 'open' ? [b.type, b.x, b.y, b.z, b.rot, b.surf, 'open'] : [b.type, b.x, b.y, b.z, b.rot, b.surf])),
       hangars: this.hangars.map((h) => [h.x0, h.z0, h.x1, h.z1]),
       decor: this.decor.map((d) => [d.type, d.x, d.z, d.rot]),
     };
@@ -777,6 +787,13 @@ export class Editor {
     for (const b of this.blocks) {
       const f = BLOCKS[b.type].feature;
       if (f === 'start') start++; else if (f === 'finish') finish++; else if (f === 'cp') cp++;
+    }
+    // plaza gates of side-by-side cells count once (see mergeGates)
+    if (cp || finish) {
+      try {
+        const t = new Track({ blocks: this.data().blocks }, { collision: false });
+        cp = t.checkpoints.length; finish = t.finishes.length;
+      } catch { /* keep the block counts */ }
     }
     return { start, finish, cp, blocks: this.blocks.length, open: this.openPorts ? this.openPorts.length : 0 };
   }
@@ -863,7 +880,7 @@ export class Editor {
         <div class="ed-help">
           <kbd>Click</kbd> place · <kbd>Right-click</kbd> delete<br>
           <kbd>R</kbd> rotate · <kbd>Q</kbd>/<kbd>E</kbd> level down/up<br>
-          <kbd>F</kbd> surface · <kbd>X</kbd> erase tool · <kbd>Tab</kbd> next tab<br>
+          <kbd>F</kbd> surface · <kbd>V</kbd> walls/open · <kbd>X</kbd> erase · <kbd>Tab</kbd> next tab<br>
           <kbd>Right-drag</kbd> orbit · <kbd>Shift-drag</kbd> pan · <kbd>Wheel</kbd> zoom<br>
           <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move camera · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo<br>
           Yellow arrows mark open road ends.
@@ -874,7 +891,7 @@ export class Editor {
         <div class="ed-palette" id="ed-palette"></div>
       </div>`;
     root.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-ed], [data-block], [data-decor], [data-cat], [data-tool], [data-surf], [data-lvl]');
+      const b = e.target.closest('[data-ed], [data-block], [data-decor], [data-cat], [data-tool], [data-surf], [data-edge], [data-lvl]');
       if (!b) return;
       this.app.audio.click();
       if (b.dataset.ed) this._ui(b.dataset.ed);
@@ -883,6 +900,7 @@ export class Editor {
       else if (b.dataset.cat) this.setCategory(b.dataset.cat);
       else if (b.dataset.tool) this.setTool(b.dataset.tool);
       else if (b.dataset.surf) { this.surf = b.dataset.surf; this._syncSurface(); this._updatePreview(); }
+      else if (b.dataset.edge) this.setEdge(b.dataset.edge);
       else if (b.dataset.lvl) this.setLevel(this.level + +b.dataset.lvl);
     });
     root.querySelector('#ed-name').addEventListener('input', (e) => { this.meta.name = e.target.value; this.dirty = true; });
@@ -925,6 +943,7 @@ export class Editor {
     tabs.innerHTML = TABS.map((c) => `<button class="tab" role="tab" data-cat="${c.id}" aria-selected="${c.id === this.cat}">${c.name}</button>`).join('') +
       `<span class="spacer"></span>` +
       (this._onGround() ? '' : `
+       <div class="seg" id="ed-edges" title="Road side walls (V)"><button data-edge="wall" aria-pressed="${this.edge === 'wall'}">Walls</button><button data-edge="open" aria-pressed="${this.edge === 'open'}">Open</button></div>
        <div class="seg" id="ed-surfaces">${SURFACE_VARIANTS.map((s) => `<button data-surf="${s}" aria-pressed="${s === this.surf}">${SURF_LABEL[s]}</button>`).join('')}</div>
        <div class="seg"><button data-lvl="-1" aria-label="Level down">Level −</button><button data-lvl="1" aria-label="Level up">Level +</button></div>`) +
       `<div class="seg"><button class="ed-tool" data-tool="place" aria-pressed="${this.tool === 'place'}">Place</button><button class="ed-tool" data-tool="erase" aria-pressed="${this.tool === 'erase'}">Erase</button></div>`;
@@ -967,7 +986,7 @@ export class Editor {
     R.querySelector('#ed-sel').textContent = sel;
     R.querySelector('#ed-rot').textContent = this.cat === 'hangar' ? '-' : `${this.rot * 90}°`;
     R.querySelector('#ed-level').textContent = this._onGround() ? 'Ground' : String(this.level);
-    R.querySelector('#ed-surf').textContent = this._onGround() ? '-' : def.surfaces ? SURF_LABEL[this.surf] : 'Road only';
+    R.querySelector('#ed-surf').textContent = this._onGround() ? '-' : (def.surfaces ? SURF_LABEL[this.surf] : 'Road only') + (def.profile === 'road' && this.edge === 'open' ? ', open' : '');
     if (light) return;
     const c = this.counts();
     const ok = (b, text) => `<span class="${b ? 'ok' : 'bad'}">${b ? '✓' : '✗'}</span> ${text}`;

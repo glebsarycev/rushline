@@ -69,10 +69,15 @@ export function computeRoute(track) {
     if (visited.has(key)) break;
     visited.add(key);
     let exit = exitPort(b.def, entry);
-    // four-way blocks (platforms) are left by whichever side the track continues on
-    if (b.def.ports.length > 2 && !b.links[exit]) {
-      const k = b.links.findIndex((l, i) => l && i !== entry);
-      if (k >= 0) exit = k;
+    // four-way blocks (platforms, plazas): the driving line leaves towards the next
+    // block in build order; otherwise straight on, otherwise whichever side continues
+    if (b.def.ports.length > 2) {
+      const next = b.links.findIndex((l, i) => l && i !== entry && l.b.i === b.i + 1);
+      if (next >= 0) exit = next;
+      else if (!b.links[exit]) {
+        const k = b.links.findIndex((l, i) => l && i !== entry);
+        if (k >= 0) exit = k;
+      }
     }
     const frames = blockFrames(b, entry, exit);
     for (const f of frames) {

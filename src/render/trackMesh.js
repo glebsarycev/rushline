@@ -53,7 +53,7 @@ function toMeshes(acc, materials, group) {
 export function buildTrackMesh(track, materials) {
   const acc = new Map();
   for (const b of track.blocks) {
-    const g = blockGeometry(b.type, b.surf);
+    const g = blockGeometry(b.type, b.surf, b.edge);
     append(acc, g.body.mats, b);
     for (let i = 0; i < 2; i++) if (!b.links || !b.links[i]) append(acc, g.caps[i].mats, b);
   }
@@ -73,11 +73,11 @@ export function buildBufferMesh(buf, materials) {
 
 // Single block in its local frame (editor). Geometry is cached per type/surface.
 const blockCache = new Map();
-export function buildBlockMesh(type, surf, materials) {
-  const key = type + '|' + surf;
+export function buildBlockMesh(type, surf, materials, edge = 'wall') {
+  const key = type + '|' + surf + '|' + edge;
   let geos = blockCache.get(key);
   if (!geos) {
-    const g = blockGeometry(type, surf);
+    const g = blockGeometry(type, surf, edge);
     const acc = new Map();
     append(acc, g.body.mats, null);
     append(acc, g.caps[0].mats, null);

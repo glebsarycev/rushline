@@ -46,7 +46,41 @@ export function parseBlocks(list) {
     const e = list[i];
     const def = BLOCKS[e[0]];
     if (!def) continue;
-    out.push({ i, type: e[0], x: e[1] | 0, y: e[2] | 0, z: e[3] | 0, rot: (e[4] | 0) & 3, surf: e[5] || 'road', def });
+    out.push({ i, type: e[0], x: e[1] | 0, y: e[2] | 0, z: e[3] | 0, rot: (e[4] | 0) & 3, surf: e[5] || 'road', edge: e[6] === 'open' ? 'open' : 'wall', def });
+  }
+  return out;
+}
+
+// Gates of side-by-side platform cells (a checkpoint line across a plaza) become
+// one wide gate: crossing any part of the line counts once.
+function mergeGates(list) {
+  const out = [];
+  const used = new Set();
+  for (let i = 0; i < list.length; i++) {
+    if (used.has(i)) continue;
+    const g = list[i];
+    const group = [g];
+    used.add(i);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (let j = 0; j < list.length; j++) {
+        if (used.has(j)) continue;
+        const h = list[j];
+        if (h.block.def.profile !== 'platform' || g.block.def.profile !== 'platform') continue;
+        if (Math.abs(h.fwd[0] * g.fwd[0] + h.fwd[2] * g.fwd[2]) < 0.99) continue;
+        const near = group.some((m) => {
+          const dx = h.center[0] - m.center[0], dy = h.center[1] - m.center[1], dz = h.center[2] - m.center[2];
+          const along = dx * g.fwd[0] + dz * g.fwd[2], lat = dx * g.right[0] + dz * g.right[2];
+          return Math.abs(along) < 1 && Math.abs(dy) < 1 && Math.abs(Math.abs(lat) - CELL) < 1;
+        });
+        if (near) { group.push(h); used.add(j); grew = true; }
+      }
+    }
+    if (group.length === 1) { out.push(g); continue; }
+    const lats = group.map((m) => (m.center[0] - g.center[0]) * g.right[0] + (m.center[2] - g.center[2]) * g.right[2]);
+    const lo = Math.min(...lats), hi = Math.max(...lats), mid = (lo + hi) / 2;
+    out.push({ ...g, center: [g.center[0] + g.right[0] * mid, g.center[1], g.center[2] + g.right[2] * mid], halfWidth: (hi - lo) / 2 + HALF, blocks: group.map((m) => m.block) });
   }
   return out;
 }
@@ -117,7 +151,7 @@ export class Track {
           type: info.type,
           center: localToWorld(b, 0, ROAD_Y, info.gateZ),
           fwd, right, up: [0, 1, 0],
-          halfWidth: ROAD_HALF + 2.5,
+          halfWidth: b.def.profile === 'platform' ? HALF : ROAD_HALF + 2.5,
           height: 10,
           block: b,
         };
@@ -129,6 +163,9 @@ export class Track {
         });
       }
     }
+    this.checkpoints = mergeGates(this.checkpoints);
+    this.checkpoints.forEach((g, i) => { g.index = i; });
+    this.finishes = mergeGates(this.finishes);
   }
 
   // loops keep the car centred with a gentle assist (see Race._guide)
@@ -173,7 +210,7 @@ export class Track {
   _collision() {
     const tris = [];
     for (const b of this.blocks) {
-      const g = blockGeometry(b.type, b.surf);
+      const g = blockGeometry(b.type, b.surf, b.edge);
       appendColl(tris, g.body.coll, b);
       for (let i = 0; i < 2; i++) if (!b.links[i]) appendColl(tris, g.caps[i].coll, b);
     }

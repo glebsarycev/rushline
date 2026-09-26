@@ -61,6 +61,11 @@ on the last checkpoint with the speed you had there.
   container stacks, floodlights, LED screens, tanks, scaffolds, crates.
 - **Personal best ghost** and live checkpoint splits (blue = faster, red = slower).
 - **Surfaces:** asphalt, dirt, ice and grass, each with its own grip.
+- **Open track pieces (PolyTrack style):** plazas (open floors of platform cells
+  with checkpoint / finish lines across their whole width, and turns across them),
+  road without side walls (editor: *Walls / Open*, key V), forks (a branch leaves a
+  plaza and rejoins later: find your own line), and half-pipes whose walls curl
+  back inwards so you can ride high on them at speed.
 - **Stunt blocks:** loops, wall rides, banked turns, kickers, platforms (the track
   can turn on them: no walls, so take it slow), long slopes that hold the car at
   full speed (Long Slope, Great Climb), turbo and super turbo pads.
@@ -185,6 +190,7 @@ tests/                Node scripts for physics, tracks and medal times;
 ```sh
 npm run test:physics   # acceleration, braking, cornering, grip, loop, jump, wall hit
 npm run test:tracks    # the AI drives every campaign track
+npm run test:pieces    # plazas, wide gates, forks, open road, half-pipes
 npm run test:campaign  # each track matches its FS / TECH style and 30-45 s
 npm run medals         # recompute campaign medal times into src/track/medals.js
 npm run build:car      # regenerate assets/models/rushline-racer.glb and .glb.js

@@ -11,6 +11,9 @@ export const WALL_T = 1.0;     // side wall thickness
 export const WALL_H = 1.2;     // side wall height above the road
 export const SLAB = 1.2;       // thickness of the road deck
 export const LOOP_R = 26;      // loop radius
+// half-pipe cross-section: road-width floor, quarter circles, vertical walls
+export const PIPE = { floor: 10, radius: 5.5, rise: 3.0, curl: 120, lip: 0.5 };
+PIPE.wall = PIPE.radius + PIPE.rise + PIPE.radius * Math.sin((PIPE.curl * Math.PI) / 180) + PIPE.lip; // total height
 export const GRID_MIN = -24;   // editor grid limits (cells)
 export const GRID_MAX = 24;
 export const MAX_LEVEL = 20;

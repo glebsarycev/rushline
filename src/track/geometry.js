@@ -2,11 +2,47 @@
 // Everything here is plain arrays so it also runs in Node for tests.
 
 import {
-  HALF, ROAD_Y, ROAD_HALF, CURB_W, WALL_T, WALL_H, SLAB, SURF, VARIANT_SURF,
+  HALF, ROAD_Y, ROAD_HALF, CURB_W, WALL_T, WALL_H, SLAB, SURF, VARIANT_SURF, PIPE,
 } from '../config.js';
 import { BLOCKS, vadd, vsub, vscale, vlen, vcross, vdot } from './blocks.js';
 
 const RH = ROAD_HALF, C = CURB_W, WT = WALL_T, WH = WALL_H, SL = SLAB;
+
+// Half-pipe: the road's flat floor (so it joins road blocks without a step), quarter
+// circles up into short vertical walls, then the walls curl back inwards so a car
+// that climbs high is turned back down instead of flying out.
+function pipeProfile() {
+  const { floor: F, radius: R, rise: H, curl, lip: L } = PIPE;
+  const top = (curl * Math.PI) / 180;
+  const segs = [[-F, 0, F, 0, 0, 1, 'surface', 'surface']];
+  const n = 7, m = 9;
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < n; i++) {
+      const a0 = (i / n) * Math.PI / 2, a1 = ((i + 1) / n) * Math.PI / 2, am = (a0 + a1) / 2;
+      // normal points back to the circle centre (into the pipe)
+      segs.push([side * (F + R * Math.sin(a0)), R - R * Math.cos(a0), side * (F + R * Math.sin(a1)), R - R * Math.cos(a1),
+        -side * Math.sin(am), Math.cos(am), 'surface', 'surface']);
+    }
+    const uw = side * (F + R);
+    segs.push([uw, R, uw, R + H, -side, 0, 'surface', 'surface']);
+    // the curl: arc around (F, R + H) from the wall inwards over the top
+    for (let i = 0; i < m; i++) {
+      const a0 = (i / m) * top, a1 = ((i + 1) / m) * top, am = (a0 + a1) / 2;
+      segs.push([side * (F + R * Math.cos(a0)), R + H + R * Math.sin(a0), side * (F + R * Math.cos(a1)), R + H + R * Math.sin(a1),
+        -side * Math.cos(am), -Math.sin(am), 'surface', 'surface']);
+      // outer shell of the curl
+      const Ro = R + L;
+      segs.push([side * (F + Ro * Math.cos(a0)), R + H + Ro * Math.sin(a0), side * (F + Ro * Math.cos(a1)), R + H + Ro * Math.sin(a1),
+        side * Math.cos(am), Math.sin(am), 'side', 'wall']);
+    }
+    // rim where the curl ends, and the outer wall down to the deck
+    const ue = F + R * Math.cos(top), ve = R + H + R * Math.sin(top), uo = F + (R + L) * Math.cos(top), vo = R + H + (R + L) * Math.sin(top);
+    segs.push([side * ue, ve, side * uo, vo, -side * Math.sin(top), Math.cos(top), 'wallTop', 'wall']);
+    segs.push([uw + side * L, -SL, uw + side * L, R + H, side, 0, 'side', 'wall']);
+  }
+  segs.push([-F - R - L, -SL, F + R + L, -SL, 0, -1, 'under', 'wall']);
+  return segs;
+}
 
 // Cross-section segments: [u0, v0, u1, v1, normalU, normalV, material, collision]
 const PROFILES = {
@@ -22,6 +58,16 @@ const PROFILES = {
     [RH + WT, -SL, RH + WT, WH, 1, 0, 'side', 'wall'],
     [-RH - WT, -SL, RH + WT, -SL, 0, -1, 'under', 'wall'],
   ],
+  // road without side walls: fall off if you run wide
+  roadOpen: [
+    [-RH + C, 0, RH - C, 0, 0, 1, 'surface', 'surface'],
+    [-RH, 0, -RH + C, 0, 0, 1, 'curb', 'surface'],
+    [RH - C, 0, RH, 0, 0, 1, 'curb', 'surface'],
+    [-RH, -SL, -RH, 0, -1, 0, 'side', 'wall'],
+    [RH, -SL, RH, 0, 1, 0, 'side', 'wall'],
+    [-RH, -SL, RH, -SL, 0, -1, 'under', 'wall'],
+  ],
+  pipe: pipeProfile(),
   platform: [
     [-HALF, 0, HALF, 0, 0, 1, 'surface', 'surface'],
     [-HALF, -SL, -HALF, 0, -1, 0, 'side', 'wall'],
@@ -33,6 +79,8 @@ const PROFILES = {
 // End caps as rectangles in the cross-section plane: [u0, v0, u1, v1]
 const CAPS = {
   road: [[-RH - WT, -SL, RH + WT, 0], [-RH - WT, 0, -RH, WH], [RH, 0, RH + WT, WH]],
+  roadOpen: [[-RH, -SL, RH, 0]],
+  pipe: [[-RH - PIPE.radius - PIPE.lip, -SL, RH + PIPE.radius + PIPE.lip, 0], [-RH - PIPE.radius - PIPE.lip, 0, -RH - PIPE.radius, PIPE.radius + PIPE.rise], [RH + PIPE.radius, 0, RH + PIPE.radius + PIPE.lip, PIPE.radius + PIPE.rise]],
   platform: [[-HALF, -SL, HALF, 0]],
 };
 
@@ -51,6 +99,7 @@ function matFor(seg, variant, profile) {
 
 // U texture coordinate (across the road) for a cross-section point
 function acrossU(mat, u, v, profile) {
+  if (profile === 'pipe' && mat.startsWith('surface_')) return (Math.abs(u) + v) / (2 * RH) * Math.sign(u || 1);
   switch (mat) {
     case 'surface_road': return (u + RH - C) / (2 * (RH - C));
     case 'surface_dirt':
@@ -151,7 +200,7 @@ const normalOn = (fr, nu, nv) => vadd(vscale(fr.r, nu), vscale(fr.u, nv));
 // Sweep a profile along frames into a GeoBuffer.
 export function sweep(buf, frames, profileName, variant, collide = true) {
   const profile = PROFILES[profileName];
-  const surfId = VARIANT_SURF[profileName === 'platform' && variant === 'road' ? 'platform' : variant];
+  const surfId = VARIANT_SURF[profileName === 'platform' && variant === 'road' ? 'platform' : variant] ?? VARIANT_SURF.road;
   for (const seg of profile) {
     const [u0, v0, u1, v1, nu, nv, , coll] = seg;
     const key = matFor(seg, variant, profileName);
@@ -223,7 +272,23 @@ function pad(buf, key) {
   buf.flat(key, [-w, y, 9], [w, y, 9], [w, y, -9], [-w, y, -9], [0, 1, 0], [0, 0], [1, 3]);
 }
 
+// Checkpoint / finish on a platform: a banner floating across the whole cell, so the
+// gates of neighbouring cells join into one wide gate. No posts, no collision.
+function padGate(buf, kind) {
+  const style = GATE_STYLE[kind];
+  const y0 = ROAD_Y + 8.2, y1 = y0 + 1.8, hz = 0.6;
+  buf.box('gateFrame', 0, y0 + 0.9, 0, 2 * HALF, 1.8, 2 * hz, null, 0.25);
+  const py0 = y0 + 0.1, py1 = y1 - 0.1, pz = hz + 0.02;
+  buf.flat('panel' + style, [-HALF, py0, pz], [HALF, py0, pz], [HALF, py1, pz], [-HALF, py1, pz], [0, 0, 1], [0, 0], [1, 1]);
+  buf.flat('panel' + style, [HALF, py0, -pz], [-HALF, py0, -pz], [-HALF, py1, -pz], [HALF, py1, -pz], [0, 0, -1], [0, 0], [1, 1]);
+  buf.flat('glow' + style, [-HALF, y0 - 0.02, hz], [HALF, y0 - 0.02, hz], [HALF, y0 - 0.02, -hz], [-HALF, y0 - 0.02, -hz], [0, -1, 0]);
+  const y = ROAD_Y + 0.025;
+  if (kind === 'finish') buf.flat('checker', [-HALF, y, 1.6], [HALF, y, 1.6], [HALF, y, -1.6], [-HALF, y, -1.6], [0, 1, 0], [0, 0], [16, 1.6]);
+  else buf.flat('line' + style, [-HALF, y, 0.35], [HALF, y, 0.35], [HALF, y, -0.35], [-HALF, y, -0.35], [0, 1, 0], [0, 0], [1, 1]);
+}
+
 export function buildFeatures(buf, def) {
+  if (def.profile === 'platform' && (def.feature === 'cp' || def.feature === 'finish')) { padGate(buf, def.feature); return; }
   switch (def.feature) {
     case 'cp': gate(buf, 'cp', 0); break;
     case 'finish': gate(buf, 'finish', 0); break;
@@ -249,18 +314,24 @@ export function featureInfo(def) {
 // ---- cached local geometry per block type & surface -------------------------------
 const cache = new Map();
 
-export function blockGeometry(type, variant = 'road') {
+// edge: 'wall' (default) or 'open' (road blocks without side walls)
+export function blockProfile(def, edge = 'wall') {
+  return def.profile === 'road' && edge === 'open' ? 'roadOpen' : def.profile;
+}
+
+export function blockGeometry(type, variant = 'road', edge = 'wall') {
   const def = BLOCKS[type];
   const v = def.profile === 'platform' || def.surfaces ? variant : 'road';
-  const key = type + '|' + v;
+  const profile = blockProfile(def, edge);
+  const key = type + '|' + v + '|' + profile;
   let g = cache.get(key);
   if (g) return g;
   const body = new GeoBuffer();
-  sweep(body, def.frames, def.profile, v);
+  sweep(body, def.frames, profile, v);
   buildFeatures(body, def);
   const caps = [new GeoBuffer(), new GeoBuffer()];
-  cap(caps[0], def.frames[0], def.profile, -1);
-  cap(caps[1], def.frames[def.frames.length - 1], def.profile, 1);
+  cap(caps[0], def.frames[0], profile, -1);
+  cap(caps[1], def.frames[def.frames.length - 1], profile, 1);
   g = { body, caps };
   cache.set(key, g);
   return g;

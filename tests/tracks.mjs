@@ -14,7 +14,8 @@ const showMap = args.includes('--map');
 const CH = {
   start: 'S', finish: 'F', cp: 'C', boost: 'B', superboost: 'X', straight: '=', platform: '#',
   curve1: 'c', curve2: 'c', curve3: 'c', curve4: 'c', bank2: 'b', bank3: 'b', wallride: 'w',
-  hill1: '/', hill2: '/', hill3: '/', hill22: '/', hill32: '/', hill42: '/', ramp: 'k', rampBig: 'K', loop: 'O', loopL: 'O',
+  hill1: '/', hill2: '/', hill3: '/', hill22: '/', hill32: '/', hill42: '/', hill52: '/', hill63: '/', ramp: 'k', rampBig: 'K', loop: 'O', loopL: 'O',
+  cpPad: 'C', finishPad: 'F', pipe: 'U', pipe2: 'u', pipe3: 'u',
 };
 
 function map(track) {
