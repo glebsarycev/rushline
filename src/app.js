@@ -106,7 +106,7 @@ export class App {
     this.indoor.patchObject(this.ghostView.object);
     this.editor = new Editor(this);
 
-    this.campaign = CAMPAIGN.map((def) => ({ ...def, data: { ...def.build(), env: def.env, name: def.name } }));
+    this.campaign = CAMPAIGN.map((def) => ({ ...def, data: { ...def.build(), env: def.env, land: def.land, name: def.name } }));
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -116,6 +116,10 @@ export class App {
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'race' && this.race?.state === 'running') this.setPaused(true); });
 
     this.applySettings();
+    // the menu's first track: have its sky and landscape in before the first frame
+    this.ui.showLoading(true, 'Painting the sky');
+    const first = this.campaign[this.attractIndex % this.campaign.length];
+    try { await this.env.preload(first.env, first.land); } catch { /* the sky falls back to plain colours */ }
     this.startAttract();
     this.ui.showLoading(false);
     this.ui.showScreen('title');
@@ -176,7 +180,7 @@ export class App {
     this.track = new Track({ ...data, id });
     this.trackGroup = buildTrackMesh(this.track, this.materials);
     this.scene.add(this.trackGroup);
-    this.env.setPreset(this.track.env);
+    this.env.setPreset(this.track.env, this.track.land);
     applyMaterialMood(this.materials, this.track.env);
     this.carView.setHeadlights(this.track.env === 'night');
     this.env.buildStadium(this.track);
@@ -251,7 +255,7 @@ export class App {
     const t = Records.listTracks().find((x) => x.id === id);
     if (!t) return;
     const medals = t.authorTime ? Records.medalsFromAuthor(t.authorTime) : null;
-    this.playTrack({ id: t.id, name: t.name, data: { blocks: t.blocks, hangars: t.hangars, decor: t.decor, env: t.env, name: t.name }, medals, from: 'custom', sub: `By ${t.author || 'you'}` });
+    this.playTrack({ id: t.id, name: t.name, data: { blocks: t.blocks, hangars: t.hangars, decor: t.decor, env: t.env, land: t.land, name: t.name }, medals, from: 'custom', sub: `By ${t.author || 'you'}` });
   }
 
   playTrack(ctx) {

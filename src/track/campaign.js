@@ -8,7 +8,7 @@ const B = () => new TrackBuilder();
 
 export const CAMPAIGN = [
   {
-    id: 'c01', name: 'Morning Warmup', env: 'day',
+    id: 'c01', name: 'Morning Warmup', env: 'morning', land: 'mountains',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(2)
@@ -24,7 +24,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c02', name: 'Kicker Park', env: 'day',
+    id: 'c02', name: 'Kicker Park', env: 'day', land: 'city',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(3)
@@ -39,7 +39,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c03', name: 'Loop Avenue', env: 'day',
+    id: 'c03', name: 'Loop Avenue', env: 'day', land: 'sea',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(4)
@@ -53,7 +53,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c04', name: 'Dust Bowl', env: 'sunset',
+    id: 'c04', name: 'Dust Bowl', env: 'sunset', land: 'canyon',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(1)
@@ -69,7 +69,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c05', name: 'Skyline', env: 'sunset',
+    id: 'c05', name: 'Skyline', env: 'sunset', land: 'city',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(1)
@@ -85,7 +85,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c06', name: 'Frostbite', env: 'night',
+    id: 'c06', name: 'Frostbite', env: 'night', land: 'mountains',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(2).boost().straight(1)
@@ -99,7 +99,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c07', name: 'Wall Street', env: 'day',
+    id: 'c07', name: 'Wall Street', env: 'day', land: 'city',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(3).boost().straight(1)
@@ -113,7 +113,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c08', name: 'Platform Leap', env: 'sunset',
+    id: 'c08', name: 'Platform Leap', env: 'sunset', land: 'sea',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(1).boost()
@@ -128,7 +128,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c09', name: 'Night Shift', env: 'night',
+    id: 'c09', name: 'Night Shift', env: 'night', land: 'city',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(2)
@@ -141,7 +141,7 @@ export const CAMPAIGN = [
       .build(),
   },
   {
-    id: 'c10', name: 'Grand Rush', env: 'sunset',
+    id: 'c10', name: 'Grand Rush', env: 'morning', land: 'sea',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(3)
@@ -157,7 +157,7 @@ export const CAMPAIGN = [
   },
   {
     // technical: brake for the tight turns inside the hangar
-    id: 'c11', name: 'Hangar Run', env: 'day',
+    id: 'c11', name: 'Hangar Run', env: 'day', land: 'mountains',
     medals: null,
     build: () => B().at(0, 0, 0, 0)
       .start().straight(3)

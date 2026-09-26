@@ -58,6 +58,7 @@ export class Track {
     this.name = data.name || 'Untitled';
     this.author = data.author || 'Unknown';
     this.env = data.env || 'day';
+    this.land = data.land || 'mountains';
     this.medals = data.medals || null;
     this.blocks = parseBlocks(data.blocks || []);
     this._ports();

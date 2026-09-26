@@ -1,0 +1,70 @@
+{
+ "sky-morning.jpg": {
+  "horizon": 0.5316,
+  "sun": [
+   0.5263,
+   0.5097
+  ],
+  "fog": [
+   0.938,
+   0.677,
+   0.517
+  ]
+ },
+ "sky-day.jpg": {
+  "horizon": 0.5255,
+  "sun": [
+   0.5263,
+   0.1893
+  ],
+  "fog": [
+   0.673,
+   0.823,
+   0.984
+  ]
+ },
+ "sky-sunset.jpg": {
+  "horizon": 0.5273,
+  "sun": [
+   0.523,
+   0.5097
+  ],
+  "fog": [
+   0.91,
+   0.401,
+   0.178
+  ]
+ },
+ "sky-night.jpg": {
+  "horizon": 0.5358,
+  "sun": [
+   0.5296,
+   0.3131
+  ],
+  "fog": [
+   0.065,
+   0.232,
+   0.552
+  ]
+ },
+ "land-mountains.webp": {
+  "aspect": 2.3294
+ },
+ "land-city.webp": {
+  "aspect": 2.3294
+ },
+ "land-sea.webp": {
+  "aspect": 2.3294
+ },
+ "land-canyon.webp": {
+  "aspect": 2.3294
+ },
+ "lawn.jpg": {
+  "w": 1024,
+  "h": 1024
+ },
+ "crowd.jpg": {
+  "w": 2048,
+  "h": 878
+ }
+}
