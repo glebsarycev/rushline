@@ -164,7 +164,7 @@ export class Track {
       minX = Math.min(minX, d[1] * CELL - HALF); maxX = Math.max(maxX, d[1] * CELL + HALF);
       minZ = Math.min(minZ, d[2] * CELL - HALF); maxZ = Math.max(maxZ, d[2] * CELL + HALF);
     }
-    const m = 96;
+    const m = 56; // field margin around the track: stands close in, the track fills the bowl
     this.stadium = { minX: minX - m, maxX: maxX + m, minZ: minZ - m, maxZ: maxZ + m };
     this.center = [(minX + maxX) / 2, 0, (minZ + maxZ) / 2];
   }

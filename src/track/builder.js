@@ -6,7 +6,7 @@ import { CELL, LEVEL, HALF } from '../config.js';
 import { BLOCKS, rotXZ, worldCells, DIRS, exitPort } from './blocks.js';
 
 const CURVES = [null, 'curve1', 'curve2', 'curve3', 'curve4'];
-const HILLS = { '1,1': 'hill1', '2,1': 'hill2', '3,1': 'hill3', '2,2': 'hill22', '3,2': 'hill32', '4,2': 'hill42' };
+const HILLS = { '1,1': 'hill1', '2,1': 'hill2', '3,1': 'hill3', '2,2': 'hill22', '3,2': 'hill32', '4,2': 'hill42', '5,2': 'hill52', '6,3': 'hill63' };
 
 export class TrackBuilder {
   constructor() {
@@ -37,7 +37,8 @@ export class TrackBuilder {
 
   surface(v) { this.variant = v; return this; }
 
-  place(type, entry = 0) {
+  // `exit` picks a side port of a four-way block (platform turns)
+  place(type, entry = 0, exit = null) {
     const def = BLOCKS[type];
     if (!def) throw new Error('unknown block ' + type);
     if (this.open) throw new Error(`cannot attach ${type}: previous block ends in the air (use jump)`);
@@ -58,7 +59,7 @@ export class TrackBuilder {
     }
     for (const c of cells) this.occ.set(c.join(','), `${type}#${this.blocks.length}`);
     this.blocks.push([type, bx, by, bz, rot, this.variant]);
-    const E = def.ports[exitPort(def, entry)];
+    const E = def.ports[exit ?? exitPort(def, entry)];
     const [ex, ez] = rotXZ(E.p[0], E.p[2], rot);
     this.pos = [bx * CELL + ex, by * LEVEL + E.p[1], bz * CELL + ez];
     this.dir = (E.d + rot) & 3;
@@ -75,6 +76,8 @@ export class TrackBuilder {
   superBoost() { return this.place('superboost'); }
   straight(n = 1) { for (let i = 0; i < n; i++) this.place('straight'); return this; }
   platform(n = 1) { for (let i = 0; i < n; i++) this.place('platform'); return this; }
+  // quarter turn across one platform (no walls: too fast and you fall off)
+  platformTurn(side = 'R') { return this.place('platform', 0, side === 'R' ? 2 : 3); }
   right(size = 2) { return this.place(CURVES[size], 0); }
   left(size = 2) { return this.place(CURVES[size], 1); }
   bankRight(size = 2) { return this.place(size === 3 ? 'bank3' : 'bank2', 0); }

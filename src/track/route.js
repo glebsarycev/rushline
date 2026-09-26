@@ -13,6 +13,21 @@ function blockFrames(b, entry, exit) {
   if (def.ports.length === 2 || (entry <= 1 && exit <= 1)) {
     frames = def.frames.map((f) => worldFrame(b, f));
     if (entry === 1) frames = frames.reverse().map((f) => ({ p: f.p, f: vscale(f.f, -1), r: vscale(f.r, -1), u: f.u }));
+  } else if (((b.ports[entry].d - b.ports[exit].d) & 1) !== 0) {
+    // turning on a platform: quarter circle around the corner between the two ports
+    const a = b.ports[entry].p, c = b.ports[exit].p;
+    const [ox, oz] = DIRS[b.ports[exit].d];
+    const R = Math.hypot(c[0] - a[0], c[2] - a[2]) / Math.SQRT2;
+    const ctr = [a[0] + ox * R, a[1] + ROAD_Y, a[2] + oz * R];
+    const va = [a[0] - ctr[0], 0, a[2] - ctr[2]], vc = [c[0] - ctr[0], 0, c[2] - ctr[2]];
+    const u = [0, 1, 0];
+    frames = [];
+    for (let k = 0; k <= 12; k++) {
+      const t = (k / 12) * Math.PI / 2;
+      const p = [ctr[0] + va[0] * Math.cos(t) + vc[0] * Math.sin(t), ctr[1], ctr[2] + va[2] * Math.cos(t) + vc[2] * Math.sin(t)];
+      const f = vnorm([-va[0] * Math.sin(t) + vc[0] * Math.cos(t), 0, -va[2] * Math.sin(t) + vc[2] * Math.cos(t)]);
+      frames.push({ p, f, r: vnorm(vcross(f, u)), u });
+    }
   } else {
     // crossing a platform sideways
     const a = b.ports[entry].p, c = b.ports[exit].p;
@@ -53,7 +68,12 @@ export function computeRoute(track) {
     const key = b.i + ':' + entry;
     if (visited.has(key)) break;
     visited.add(key);
-    const exit = exitPort(b.def, entry);
+    let exit = exitPort(b.def, entry);
+    // four-way blocks (platforms) are left by whichever side the track continues on
+    if (b.def.ports.length > 2 && !b.links[exit]) {
+      const k = b.links.findIndex((l, i) => l && i !== entry);
+      if (k >= 0) exit = k;
+    }
     const frames = blockFrames(b, entry, exit);
     for (const f of frames) {
       const last = raw[raw.length - 1];

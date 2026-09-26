@@ -219,6 +219,9 @@ def('hill22', { name: 'Double Slope', cat: 'slope', path: () => hillPath(2, 2), 
 def('hill3', { name: 'Gentle Slope', cat: 'slope', path: () => hillPath(3, 1), ports: [SOUTH_IN(), P(0, LEVEL, -HALF - 2 * CELL, 0)] });
 def('hill32', { name: 'Long Climb', cat: 'slope', path: () => hillPath(3, 2), ports: [SOUTH_IN(), P(0, 2 * LEVEL, -HALF - 2 * CELL, 0)] });
 def('hill42', { name: 'Grand Climb', cat: 'slope', path: () => hillPath(4, 2), ports: [SOUTH_IN(), P(0, 2 * LEVEL, -HALF - 3 * CELL, 0)] });
+// long, gentle slopes: their crests hold the car at full speed
+def('hill52', { name: 'Long Slope', cat: 'slope', path: () => hillPath(5, 2), ports: [SOUTH_IN(), P(0, 2 * LEVEL, -HALF - 4 * CELL, 0)] });
+def('hill63', { name: 'Great Climb', cat: 'slope', path: () => hillPath(6, 3), ports: [SOUTH_IN(), P(0, 3 * LEVEL, -HALF - 5 * CELL, 0)] });
 def('ramp', { name: 'Kicker', cat: 'slope', path: () => rampPath(2.6), ports: [SOUTH_IN(), P(0, 2.6, -HALF, 0, { open: true })] });
 def('rampBig', { name: 'Big Kicker', cat: 'slope', path: () => rampPath(4.2), ports: [SOUTH_IN(), P(0, 4.2, -HALF, 0, { open: true })] });
 

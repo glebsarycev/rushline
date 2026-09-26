@@ -42,9 +42,10 @@ back on the last checkpoint with the speed you had there.
 
 ## What's in it
 
-- **Campaign:** 10 tracks of 30-45 s, each marked **FS** (full speed: never
-  lift) or **TECH** (brake for the corners), with Bronze, Silver, Gold and Author
-  medals. `tests/campaign.mjs` checks every track against its style: the AI
+- **Campaign:** 10 multi-level tracks of 30-45 s (starts high up, spiral
+  climbs, platform runs, drops and jumps between levels), each marked **FS**
+  (full speed: never lift) or **TECH** (brake for the corners), with Bronze,
+  Silver, Gold and Author medals. `tests/campaign.mjs` checks every track against its style: the AI
   finishes cleanly in 30-45 s, a never-lift driver finishes FS tracks cleanly and
   crashes out of TECH ones. Medal times come from AI runs (`npm run medals`).
 - **Premium environment:** four times of day (morning, day, sunset, night) and
@@ -58,8 +59,9 @@ back on the last checkpoint with the speed you had there.
   container stacks, floodlights, LED screens, tanks, scaffolds, crates.
 - **Personal best ghost** and live checkpoint splits (blue = faster, red = slower).
 - **Surfaces:** asphalt, dirt, ice and grass, each with its own grip.
-- **Stunt blocks:** loops, wall rides, banked turns, kickers, platforms, turbo and
-  super turbo pads.
+- **Stunt blocks:** loops, wall rides, banked turns, kickers, platforms (the track
+  can turn on them: no walls, so take it slow), long slopes that hold the car at
+  full speed (Long Slope, Great Climb), turbo and super turbo pads.
 - **Track editor:** place blocks on the grid, stack them in levels, pick road,
   dirt or ice, test drive, set the author time by finishing your own track, save,
   and share tracks as a text code (My tracks → Share / Import code).
