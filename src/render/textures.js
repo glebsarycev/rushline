@@ -445,6 +445,39 @@ export function linePaint(color, dashed = false) {
 }
 
 // ---- stadium --------------------------------------------------------------------------
+// LED ribbon: white graphics on black, tinted per time of day by the emissive colour
+export function ledRibbon() {
+  const W = 2048, H = 128;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  const words = ['RUSHLINE', 'GO FASTER', 'RUSHLINE', 'FULL THROTTLE'];
+  words.forEach((w, i) => {
+    const x0 = i * 512;
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(x0, 0, 512, 10); ctx.fillRect(x0, H - 10, 512, 10);
+    for (let k = 0; k < 4; k++) {
+      ctx.globalAlpha = 0.35 + k * 0.2;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.moveTo(x0 + 22 + k * 22, H - 26); ctx.lineTo(x0 + 38 + k * 22, 26); ctx.lineTo(x0 + 50 + k * 22, 26); ctx.lineTo(x0 + 34 + k * 22, H - 26);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = `italic 700 ${w.length > 10 ? 66 : 80}px ${FONT_DISPLAY}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillText(w, x0 + 290, H / 2 + 4);
+  });
+  // LED pixel grid
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  for (let x = 0; x < W; x += 4) ctx.fillRect(x, 0, 1, H);
+  for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1);
+  const t = toTex(c);
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
 export function crowd() {
   const W = 512, H = 256;
   const [c, ctx] = canvas(W, H);
@@ -583,5 +616,6 @@ export function createTextures() {
     screen: ledScreen(),
     floor: concrete('#8b9096', 67),
     hangarSign: textPanel('RUSHLINE WORKS', '#ff8a1f', '#1b2027'),
+    ribbon: ledRibbon(),
   };
 }

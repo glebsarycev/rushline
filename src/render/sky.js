@@ -36,6 +36,7 @@ const FS = /* glsl */`
 uniform sampler2D uSky;
 uniform float uHorizon;
 uniform float uOffset;
+uniform float uLift;
 uniform float uGain;
 uniform vec3 uSunDir;
 uniform vec3 uSunGlow;
@@ -60,6 +61,7 @@ float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.3
 float dWrap(float d) { return d > PI ? d - 2.0 * PI : (d < -PI ? d + 2.0 * PI : d); }
 
 vec3 skyAt(float az, float el, vec2 gAz, vec2 gEl) {
+  el -= uLift; // low suns are lifted above the stadium roof
   float u = az / (2.0 * PI) + uOffset;
   float yTop = el >= 0.0 ? uHorizon * (1.0 - el / (0.5 * PI)) : uHorizon + (1.0 - uHorizon) * min(1.0, -el / (0.5 * PI));
   vec2 uv = vec2(fract(u), 1.0 - yTop);
@@ -105,10 +107,11 @@ void main() {
       vec3 lc = land.rgb * uLandLight;
       lc = mix(lc, uHaze, uHazeAmt * (1.0 - 0.6 * lv));
       if (uWindows > 0.5) {
-        vec2 cell = floor(vec2(lu * 1400.0, lv * 520.0));
+        // sparse warm windows, a few cool ones; cells big enough not to shimmer
+        vec2 cell = floor(vec2(lu * 460.0, lv * 170.0));
         float h = hash21(cell + seg * 17.0);
-        float lit = step(0.8, h) * step(0.02, lv) * step(lv, 0.42) * step(0.55, land.a);
-        lc += lit * mix(vec3(1.0, 0.72, 0.38), vec3(0.62, 0.8, 1.0), step(0.93, h)) * 1.4;
+        float lit = step(0.9, h) * step(0.03, lv) * step(lv, 0.44) * step(0.75, land.a);
+        lc += lit * mix(vec3(1.0, 0.68, 0.32), vec3(0.55, 0.75, 1.0), step(0.975, h)) * 0.75;
       }
       col = mix(col, lc, land.a);
     }
@@ -148,7 +151,7 @@ EMPTY.needsUpdate = true;
 export class SkyDome {
   constructor() {
     this.uniforms = {
-      uSky: { value: EMPTY }, uHorizon: { value: 0.53 }, uOffset: { value: 0 }, uGain: { value: 1 },
+      uSky: { value: EMPTY }, uHorizon: { value: 0.53 }, uOffset: { value: 0 }, uLift: { value: 0 }, uGain: { value: 1 },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunGlow: { value: new THREE.Color(0, 0, 0) },
       uLand: { value: EMPTY }, uLandOn: { value: 0 }, uCopies: { value: 4 }, uBase: { value: 0 }, uHeight: { value: 0.5 },
       uLandLight: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.7, 0.8, 0.9) }, uHazeAmt: { value: 0.3 },
@@ -181,7 +184,8 @@ export class SkyDome {
     // put the sun of the picture at the preset's world azimuth
     const az = THREE.MathUtils.degToRad(P.sunAz);
     U.uOffset.value = S.sun[0] - az / (2 * Math.PI);
-    this.sunElevation = (Math.PI / 2) * (S.horizon - S.sun[1]) / S.horizon;
+    U.uLift.value = THREE.MathUtils.degToRad(P.skyLift || 0);
+    this.sunElevation = (Math.PI / 2) * (S.horizon - S.sun[1]) / S.horizon + U.uLift.value;
     this.sunAzimuth = az;
     U.uSunDir.value.set(Math.sin(az) * Math.cos(this.sunElevation), Math.sin(this.sunElevation), -Math.cos(az) * Math.cos(this.sunElevation));
     U.uGain.value = P.skyGain;

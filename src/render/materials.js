@@ -69,7 +69,7 @@ export function createMaterials(T) {
 // Night makes the track stripes and gates glow harder
 export function applyMaterialMood(M, env) {
   const night = env === 'night';
-  M.wall.emissiveIntensity = night ? 4.5 : env === 'sunset' ? 0.6 : 0;
+  M.wall.emissiveIntensity = night ? 4.5 : env === 'sunset' ? 0.4 : 0;
   for (const k of ['panelCP', 'panelStart', 'panelFinish']) M[k].emissiveIntensity = night ? 5 : 2.2;
   for (const k of ['glowCP', 'glowStart', 'glowFinish']) M[k].emissiveIntensity = night ? 9 : 3.4;
   M.boostPad.emissiveIntensity = night ? 3.5 : 1.6;

@@ -8,6 +8,7 @@ import { buildBlockMesh, buildBufferMesh } from '../render/trackMesh.js';
 import { GeoBuffer } from '../track/geometry.js';
 import { DECOR, DECOR_TYPES, buildDecor, decorSeed, hangarHeight, occupancy } from '../track/scenery.js';
 import { applyMaterialMood } from '../render/materials.js';
+import { ENV_PRESETS, ENV_IDS, LANDS, LAND_IDS } from '../render/environment.js';
 import * as Records from '../game/records.js';
 import { formatTime } from '../util/math.js';
 
@@ -17,7 +18,6 @@ const SCENERY_TABS = [{ id: 'hangar', name: 'Hangar' }, { id: 'decor', name: 'De
 const TABS = [...CATEGORIES, ...SCENERY_TABS];
 const MAX_HANGARS = 8, MAX_HANGAR_SIDE = 16;
 const HANGAR_ICON = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><rect width="160" height="120" fill="#1a222d"/><path d="M20 96V50l60-22 60 22v46z" fill="#8e969f"/><path d="M20 50l60-22 60 22" fill="none" stroke="#3b424b" stroke-width="5"/><rect x="58" y="62" width="44" height="34" fill="#15171b"/><path d="M58 62h44v8H58z" fill="#f2b705"/><path d="M62 62l-4 8h6l4-8zm12 0l-4 8h6l4-8zm12 0l-4 8h6l4-8zm12 0l-4 8h4v-8z" fill="#15171b"/><rect x="28" y="56" width="22" height="6" fill="#2c4058"/><rect x="110" y="56" width="22" height="6" fill="#2c4058"/></svg>`);
-const ENV_LABEL = { day: 'Day', sunset: 'Sunset', night: 'Night' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const _ray = new THREE.Raycaster();
@@ -54,7 +54,7 @@ export class Editor {
     this.active = false;
     this.built = false;
     this.thumbs = {};
-    this.meta = { id: null, name: 'Untitled track', author: 'Me', env: 'day' };
+    this.meta = { id: null, name: 'Untitled track', author: 'Me', env: 'day', land: 'mountains' };
     this.authorTime = null;
     this.testBest = null;
     this.testGhost = null;
@@ -98,14 +98,14 @@ export class Editor {
     this._ensureBuilt();
     this._clearAll();
     if (entry) {
-      this.meta = { id: entry.id, name: entry.name || 'Untitled track', author: entry.author || 'Me', env: entry.env || 'day' };
+      this.meta = { id: entry.id, name: entry.name || 'Untitled track', author: entry.author || 'Me', env: entry.env || 'day', land: entry.land || 'mountains' };
       this.authorTime = entry.authorTime || null;
       for (const b of entry.blocks) this._add({ type: b[0], x: b[1], y: b[2], z: b[3], rot: b[4] || 0, surf: b[5] || 'road' });
       for (const h of entry.hangars || []) this._add({ kind: 'hangar', x0: Math.min(h[0], h[2]), z0: Math.min(h[1], h[3]), x1: Math.max(h[0], h[2]), z1: Math.max(h[1], h[3]) });
       for (const d of entry.decor || []) if (DECOR[d[0]]) this._add({ kind: 'decor', type: d[0], x: d[1], z: d[2], rot: d[3] || 0 });
       this._refreshHangars();
     } else {
-      this.meta = { id: null, name: 'Untitled track', author: 'Me', env: 'day' };
+      this.meta = { id: null, name: 'Untitled track', author: 'Me', env: 'day', land: 'mountains' };
       this.authorTime = null;
       this._add({ type: 'start', x: 0, y: 0, z: 0, rot: 0, surf: 'road' });
     }
@@ -125,7 +125,7 @@ export class Editor {
     this.active = true;
     const app = this.app;
     if (!this.group.parent) app.scene.add(this.group);
-    app.env.setPreset(this.meta.env);
+    app.env.setPreset(this.meta.env, this.meta.land);
     applyMaterialMood(app.materials, this.meta.env);
     if (app.env.stadium) app.env.stadium.visible = false;
     app.indoor.setEnabled(false);
@@ -139,6 +139,7 @@ export class Editor {
     const n = this.root.querySelector('#ed-name');
     n.value = this.meta.name;
     this.root.querySelector('#ed-env').value = this.meta.env;
+    this.root.querySelector('#ed-land').value = this.meta.land;
   }
 
   hide() {
@@ -764,7 +765,7 @@ export class Editor {
   // ---- track data -------------------------------------------------------------------------------
   data() {
     return {
-      name: this.meta.name, env: this.meta.env,
+      name: this.meta.name, env: this.meta.env, land: this.meta.land,
       blocks: this.blocks.map((b) => [b.type, b.x, b.y, b.z, b.rot, b.surf]),
       hangars: this.hangars.map((h) => [h.x0, h.z0, h.x1, h.z1]),
       decor: this.decor.map((d) => [d.type, d.x, d.z, d.rot]),
@@ -803,7 +804,7 @@ export class Editor {
     this.meta.name = this.root.querySelector('#ed-name').value.trim() || 'Untitled track';
     if (!this.meta.id) this.meta.id = Records.newTrackId();
     const data = this.data();
-    const entry = Records.saveTrack({ id: this.meta.id, name: this.meta.name, author: this.meta.author, env: this.meta.env, blocks: data.blocks, hangars: data.hangars, decor: data.decor, authorTime: this.authorTime });
+    const entry = Records.saveTrack({ id: this.meta.id, name: this.meta.name, author: this.meta.author, env: this.meta.env, land: this.meta.land, blocks: data.blocks, hangars: data.hangars, decor: data.decor, authorTime: this.authorTime });
     this.dirty = false;
     this.app.ui.toast(`Saved “${entry.name}”${this.authorTime ? '' : ' (not validated yet)'}`);
     return entry;
@@ -841,7 +842,8 @@ export class Editor {
       <div class="ed-top">
         <button class="btn small" data-ed="menu"><span>Menu</span></button>
         <input class="text" id="ed-name" maxlength="40" aria-label="Track name" spellcheck="false">
-        <select id="ed-env" aria-label="Time of day"><option value="day">Day</option><option value="sunset">Sunset</option><option value="night">Night</option></select>
+        <select id="ed-env" aria-label="Time of day">${ENV_IDS.map((id) => `<option value="${id}">${ENV_PRESETS[id].label}</option>`).join('')}</select>
+        <select id="ed-land" aria-label="Landscape">${LAND_IDS.map((id) => `<option value="${id}">${LANDS[id].label}</option>`).join('')}</select>
         <span class="spacer"></span>
         <button class="btn small" data-ed="undo" title="Ctrl+Z"><span>Undo</span></button>
         <button class="btn small" data-ed="redo" title="Ctrl+Y"><span>Redo</span></button>
@@ -887,8 +889,14 @@ export class Editor {
     root.querySelector('#ed-env').addEventListener('change', (e) => {
       this.meta.env = e.target.value;
       this.dirty = true;
-      this.app.env.setPreset(this.meta.env);
+      this.app.env.setPreset(this.meta.env, this.meta.land);
       applyMaterialMood(this.app.materials, this.meta.env);
+      e.target.blur();
+    });
+    root.querySelector('#ed-land').addEventListener('change', (e) => {
+      this.meta.land = e.target.value;
+      this.dirty = true;
+      this.app.env.setPreset(this.meta.env, this.meta.land);
       e.target.blur();
     });
     this.app.canvas.addEventListener('pointermove', (e) => { this.lastPointer = { clientX: e.clientX, clientY: e.clientY }; });

@@ -11,6 +11,7 @@ import { CELL, LEVEL, HALF, SURF } from '../config.js';
 import { GeoBuffer } from './geometry.js';
 import { worldCells, rotXZ, DIRS } from './blocks.js';
 import { rng, hashString } from '../util/math.js';
+import { insideField } from './stadiumShape.js';
 
 export const DECOR_TYPES = [
   { id: 'containers', name: 'Containers', tall: false },
@@ -504,6 +505,7 @@ function autoDecor(track, occ, hangars, manual) {
     for (let z = zMin; z <= zMax; z++) {
       const k = x + ',' + z;
       if (reserved.has(k) || occ.cols.has(k)) continue;
+      if (!insideField(S, x * CELL, z * CELL, HALF + 8)) continue; // clear of the rounded stands
       const { d, near } = field.get(k);
       if (d === 0 || d === Infinity) continue;
       let type = null;

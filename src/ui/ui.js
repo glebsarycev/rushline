@@ -11,7 +11,7 @@ export function digits(str) {
   return `<span class="digits">${out}</span>`;
 }
 
-const ENV_LABEL = { day: 'Day', sunset: 'Sunset', night: 'Night' };
+const ENV_LABEL = { morning: 'Morning', day: 'Day', sunset: 'Sunset', night: 'Night' };
 export const CAR_COLORS = ['#ff3b30', '#ff8a00', '#ffd21a', '#2fd26e', '#18c1d6', '#2f7bff', '#8b5cf6', '#f43f9e', '#f4f4f0', '#20242b'];
 
 const ARC_LEN = 200;

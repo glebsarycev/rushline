@@ -45,6 +45,11 @@ back on the last checkpoint with the speed you had there.
 - **Campaign:** 11 tracks (day, sunset and night) with Bronze, Silver, Gold and
   Author medals. Medal times come from validated AI runs. Track 11, *Hangar Run*,
   is a technical track through a hangar.
+- **Premium environment:** four times of day (morning, day, sunset, night) and
+  four landscapes (mountains, city, sea, canyon) chosen per track; skies and
+  landscapes are Higgsfield pictures, the stadium is a TM2020-style bowl with
+  three tiers of spectators, scrolling LED ribbons, a roof canopy and giant
+  screens, and the field is a striped stadium lawn.
 - **Industrial stadium:** hangars built over parts of the road (gates open
   automatically where the road crosses a wall, dim inside with hanging lamps),
   steel truss supports under raised road, and decor around every track: cranes,
@@ -98,6 +103,21 @@ gate when track blocks sit on both sides of it at that level.
 and sky light fade out and the 24 lamps nearest the camera light the scene.
 Design notes: `docs/superpowers/specs/2026-09-25-industrial-scenery-design.md`,
 concept art: `assets/concept/map/`.
+
+## Environment
+
+`src/render/sky.js` draws the sky dome from `assets/env/sky-*.jpg`: each is the
+upper half of an equirectangular panorama (horizon row and sun position are in
+`SKIES`), so the sun light, fog colour and reflections follow the picture. Low
+suns are lifted (`skyLift`) to clear the stadium roof. `assets/env/land-*.webp`
+are photos with the sky removed (Higgsfield background removal), wrapped around
+the horizon in mirrored copies and tinted per time of day; the sea's water and
+the city's night windows are drawn in the shader. `src/render/stadium.js` sweeps
+the stand cross-section along the rounded field outline
+(`src/track/stadiumShape.js`). Presets live in `ENV_PRESETS`
+(`src/render/environment.js`); tracks pick `env` and `land`.
+Design notes: `docs/superpowers/specs/2026-09-26-premium-environment-design.md`,
+concept art: `assets/concept/env/`.
 
 ## Player car
 
