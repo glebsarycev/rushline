@@ -9,10 +9,12 @@ import { clamp } from '../util/math.js';
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();
 
 export class Bot {
-  constructor(route, car, { skill = 1, lateral = 0 } = {}) {
+  // fullSpeed: never lift or brake (the intended line on full-speed tracks)
+  constructor(route, car, { skill = 1, lateral = 0, fullSpeed = false } = {}) {
     this.route = route;
     this.P = car.P;
     this.skill = skill;
+    this.fullSpeed = fullSpeed;
     this.lateral = lateral;
     this.idx = 0;
     this.stuck = 0;
@@ -97,6 +99,7 @@ export class Bot {
     if ((car.speed < 2 && car.grounded < 4) || off > 40 || pos[1] < pt.p[1] - 12) this.stuck += dt; else this.stuck = 0;
     const respawn = this.stuck > 2.0;
     if (respawn) this.stuck = 0;
+    if (this.fullSpeed) return { throttle: 1, brake: 0, steer, respawn, noDrift: true };
     return { throttle, brake, steer, respawn, noDrift: true };
   }
 }

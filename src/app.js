@@ -203,7 +203,7 @@ export class App {
     this.loadTrack(entry.data, entry.id);
     this.race = new Race(this.track);
     this.race.reset({ countdown: false });
-    this.bot = this.track.route ? new Bot(this.track.route, this.race.car, { skill: 1.05 }) : null;
+    this.bot = this.track.route ? new Bot(this.track.route, this.race.car, { skill: 1.05, fullSpeed: entry.style === 'fs' }) : null;
     this.mode = 'menu';
     this.paused = false;
     this.context = null;
@@ -248,7 +248,7 @@ export class App {
   playCampaign(index) {
     const c = this.campaign[index];
     if (!c) { this.enterMenu('campaign'); return; }
-    this.playTrack({ id: c.id, name: c.name, data: c.data, medals: c.medals, from: 'campaign', index, sub: `Campaign ${String(index + 1).padStart(2, '0')}` });
+    this.playTrack({ id: c.id, name: c.name, data: c.data, medals: c.medals, style: c.style, from: 'campaign', index, sub: `Campaign ${String(index + 1).padStart(2, '0')}` });
   }
 
   playCustom(id) {
@@ -614,7 +614,7 @@ export class App {
     let steps = 0;
     let drive = this.mode === 'race' ? this.input.drive() : null;
     if (this.mode === 'race' && this.autopilot && this.track.route) {
-      if (!this.pilot || this.pilot.route !== this.track.route) this.pilot = new Bot(this.track.route, this.race.car, { skill: 1.05 });
+      if (!this.pilot || this.pilot.route !== this.track.route) this.pilot = new Bot(this.track.route, this.race.car, { skill: 1.05, fullSpeed: this.context?.style === 'fs' });
       drive = null;
     }
     const car = this.race.car;

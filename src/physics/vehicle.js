@@ -51,6 +51,7 @@ export const CAR = {
   hullInvIScale: 0.45,
   hullRestitution: 0.12,
   hullFriction: 0.28,
+  wallFriction: 0.6,
   driftRearGrip: 0.6,
   driftAngle: 0.22,
   driftSteer: 0.12,
@@ -388,7 +389,8 @@ export class Vehicle {
         c.p.set(wc.px, wc.py, wc.pz);
         c.n.set(wc.nx, wc.ny, wc.nz);
         c.depth = wc.depth;
-        c.kind = 2; c.wheel = -1; c.e = P.hullRestitution; c.mu = P.hullFriction; c.iscale = P.hullInvIScale; c.surf = wc.surf;
+        // scraping a wall costs speed (as in TM); body contacts with the road stay slippery
+        c.kind = 2; c.wheel = -1; c.e = P.hullRestitution; c.mu = Math.abs(wc.ny) < 0.5 ? P.wallFriction : P.hullFriction; c.iscale = P.hullInvIScale; c.surf = wc.surf;
       }
     }
     this.nContacts = n;

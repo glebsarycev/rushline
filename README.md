@@ -42,9 +42,11 @@ back on the last checkpoint with the speed you had there.
 
 ## What's in it
 
-- **Campaign:** 11 tracks (day, sunset and night) with Bronze, Silver, Gold and
-  Author medals. Medal times come from validated AI runs. Track 11, *Hangar Run*,
-  is a technical track through a hangar.
+- **Campaign:** 10 tracks of 30-45 s, each marked **FS** (full speed: never
+  lift) or **TECH** (brake for the corners), with Bronze, Silver, Gold and Author
+  medals. `tests/campaign.mjs` checks every track against its style: the AI
+  finishes cleanly in 30-45 s, a never-lift driver finishes FS tracks cleanly and
+  crashes out of TECH ones. Medal times come from AI runs (`npm run medals`).
 - **Premium environment:** four times of day (morning, day, sunset, night) and
   four landscapes (mountains, city, sea, canyon) chosen per track; skies and
   landscapes are Higgsfield pictures, the stadium is a TM2020-style bowl with
@@ -179,6 +181,7 @@ tests/                Node scripts for physics, tracks and medal times;
 ```sh
 npm run test:physics   # acceleration, braking, cornering, drift, loop, jump, wall hit
 npm run test:tracks    # the AI drives every campaign track
+npm run test:campaign  # each track matches its FS / TECH style and 30-45 s
 npm run medals         # recompute campaign medal times into src/track/medals.js
 npm run build:car      # regenerate assets/models/rushline-racer.glb and .glb.js
 npm run test:browser   # drive the real game in headless Chrome (needs puppeteer-core)

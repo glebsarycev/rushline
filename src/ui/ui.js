@@ -268,7 +268,7 @@ export class UI {
       if (got) medalCount++;
       const medals = [...MEDALS].reverse().map((m) => `<span class="medal ${m} ${MEDALS.indexOf(m) >= gi ? 'on' : ''}" title="${MEDAL_LABEL[m]}"></span>`).join('');
       return `<button class="track-card" data-act="play-campaign" data-index="${i}">
-        <div class="top"><span class="num">${String(i + 1).padStart(2, '0')}</span><span class="chip ${t.env}">${ENV_LABEL[t.env] || t.env}</span></div>
+        <div class="top"><span class="num">${String(i + 1).padStart(2, '0')}</span><span class="chips">${t.style ? `<span class="chip style-${t.style}" title="${t.style === 'fs' ? 'Full speed: never lift' : 'Technical: brake for the corners'}">${t.style === 'fs' ? 'FS' : 'TECH'}</span>` : ''}<span class="chip ${t.env}">${ENV_LABEL[t.env] || t.env}</span></span></div>
         <div class="name">${esc(t.name)}</div>
         <div class="row"><span class="muted">Best</span><span class="pb">${rec ? formatTime(rec.best) : '-:--.---'}</span></div>
         <div class="row"><span class="medals">${medals}</span><span class="muted tnum">Author ${t.medals ? formatTime(t.medals.author) : '-'}</span></div>

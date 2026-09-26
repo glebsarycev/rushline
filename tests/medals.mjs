@@ -7,6 +7,7 @@ import { Race } from '../src/game/race.js';
 import { Bot } from '../src/game/bot.js';
 import { PHYS_DT } from '../src/config.js';
 import { medalsFromAuthor } from '../src/game/records.js';
+import { drive } from './campaign.mjs';
 
 function run(track, skill) {
   const race = new Race(track);
@@ -32,6 +33,12 @@ for (const def of CAMPAIGN) {
     const t = run(track, skill);
     times.push(t == null ? 'x' : t.toFixed(3));
     if (t != null && (best == null || t < best)) best = t;
+  }
+  // full-speed tracks: the never-lift line is a legal run too
+  if (def.style === 'fs') {
+    const ft = drive(track, { fullThrottle: true });
+    times.push('ft ' + (ft.clean ? ft.time.toFixed(3) : 'x'));
+    if (ft.clean && (best == null || ft.time < best)) best = ft.time;
   }
   const author = Math.ceil((best * 1000) / 10) * 10;
   out[def.id] = medalsFromAuthor(author);
