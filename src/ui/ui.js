@@ -1,6 +1,7 @@
 // DOM user interface: menus, HUD, pause, finish panel, toasts and dialogs.
 
 import { formatTime, formatDelta } from '../util/math.js';
+import { paintTrackMap } from './trackMap.js';
 import { MEDALS, MEDAL_LABEL } from '../config.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -140,6 +141,7 @@ export class UI {
               <div class="field"><span>Camera</span><div class="seg" id="s-camera"><button data-v="chase">Close</button><button data-v="far">Far</button><button data-v="hood">Hood</button></div><span></span></div>
               <div class="field"><span>Speed unit</span><div class="seg" id="s-units"><button data-v="kmh">km/h</button><button data-v="mph">mph</button></div><span></span></div>
               <label class="toggle" for="s-ghost">Show personal best ghost <input type="checkbox" id="s-ghost"></label>
+              <label class="toggle" for="s-authorGhost">Show author ghost (campaign) <input type="checkbox" id="s-authorGhost"></label>
               <div class="field"><span>Car colour</span><div class="swatches" id="s-color"></div><span></span></div>
             </div>
           </div>
@@ -162,7 +164,7 @@ export class UI {
                 <dt><kbd>Enter</kbd><kbd>⌫</kbd></dt><dd>Respawn at the last checkpoint</dd>
                 <dt><kbd>R</kbd><kbd>Del</kbd></dt><dd>Restart the run</dd>
                 <dt><kbd>C</kbd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>Change camera</dd>
-                <dt><kbd>G</kbd></dt><dd>Show or hide your ghost</dd>
+                <dt><kbd>G</kbd></dt><dd>Ghosts: both, your best, author, off</dd>
                 <dt><kbd>Esc</kbd></dt><dd>Pause</dd>
                 <dt><kbd>M</kbd></dt><dd>Mute</dd>
               </dl>
@@ -270,10 +272,15 @@ export class UI {
       return `<button class="track-card" data-act="play-campaign" data-index="${i}">
         <div class="top"><span class="num">${String(i + 1).padStart(2, '0')}</span><span class="chips">${t.style ? `<span class="chip style-${t.style}" title="${t.style === 'fs' ? 'Full speed: never lift' : 'Technical: brake for the corners'}">${t.style === 'fs' ? 'FS' : 'TECH'}</span>` : ''}<span class="chip ${t.env}">${ENV_LABEL[t.env] || t.env}</span></span></div>
         <div class="name">${esc(t.name)}</div>
+        ${t.data ? '<canvas class="map" aria-hidden="true"></canvas>' : ''}
         <div class="row"><span class="muted">Best</span><span class="pb">${rec ? formatTime(rec.best) : '-:--.---'}</span></div>
         <div class="row"><span class="medals">${medals}</span><span class="muted tnum">Author ${t.medals ? formatTime(t.medals.author) : '-'}</span></div>
       </button>`;
     }).join('');
+    grid.querySelectorAll('.track-card').forEach((card, i) => {
+      const cv = card.querySelector('canvas.map');
+      if (cv) paintTrackMap(cv, entries[i].id, entries[i].data);
+    });
     this.$('#campaign-summary').textContent = `${medalCount} of ${entries.length} tracks medalled. Press Enter on a card to race.`;
   }
 
@@ -311,7 +318,7 @@ export class UI {
         this.app.applySettings();
       });
     }
-    for (const k of ['raceMusic', 'bloom', 'ghost', 'showFps']) {
+    for (const k of ['raceMusic', 'bloom', 'ghost', 'authorGhost', 'showFps']) {
       const input = this.$('#s-' + k);
       input.addEventListener('change', () => { s()[k] = input.checked; this.app.applySettings(); });
     }
@@ -342,7 +349,7 @@ export class UI {
       input.value = s[k];
       input.nextElementSibling.textContent = Math.round(s[k] * 100);
     }
-    for (const k of ['raceMusic', 'bloom', 'ghost', 'showFps']) this.$('#s-' + k).checked = !!s[k];
+    for (const k of ['raceMusic', 'bloom', 'ghost', 'authorGhost', 'showFps']) this.$('#s-' + k).checked = !!s[k];
     for (const k of ['quality', 'camera', 'units']) {
       this.$('#s-' + k).querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === s[k])));
     }

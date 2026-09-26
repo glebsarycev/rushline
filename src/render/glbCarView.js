@@ -12,6 +12,7 @@ const _hub = new THREE.Vector3(), _mid = new THREE.Vector3(), _dir = new THREE.V
 const _up = new THREE.Vector3(0, 1, 0);
 
 export class GlbCarView {
+  // ghost: false, true (personal best, blue) or 'author' (the author medal run, teal)
   constructor(asset, { color = '#ff3b30', ghost = false } = {}) {
     this.ghost = ghost;
     this.object = new THREE.Group();
@@ -54,7 +55,8 @@ export class GlbCarView {
   _materials(color) {
     this.mat = {};
     if (this.ghost) {
-      const m = new THREE.MeshStandardMaterial({ color: 0xbfe9ff, emissive: 0x3aa8ff, emissiveIntensity: 0.35, transparent: true, opacity: 0.34, depthWrite: false, roughness: 0.3, metalness: 0.1 });
+      const author = this.ghost === 'author';
+      const m = new THREE.MeshStandardMaterial({ color: author ? 0xb8ffe6 : 0xbfe9ff, emissive: author ? 0x21d19f : 0x3aa8ff, emissiveIntensity: 0.35, transparent: true, opacity: 0.34, depthWrite: false, roughness: 0.3, metalness: 0.1 });
       this.model.traverse((o) => {
         if (!o.isMesh) return;
         o.material = m;

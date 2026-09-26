@@ -7,7 +7,7 @@ import { MEDALS } from '../config.js';
 export const DEFAULT_SETTINGS = {
   master: 0.8, sfx: 0.9, engine: 0.75, music: 0.45, raceMusic: false,
   quality: 'high', bloom: true, shadows: 'high',
-  ghost: true, units: 'kmh', camera: 'chase', color: '#ff3b30', showFps: false,
+  ghost: true, authorGhost: true, units: 'kmh', camera: 'chase', color: '#ff3b30', showFps: false,
 };
 
 export function loadSettings() {

@@ -122,6 +122,7 @@ kbd {
 .track-card .row { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 15px; }
 .track-card .pb { font: 600 18px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
 .track-card .medals { display: flex; gap: 5px; }
+.track-card .map { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: contain; background: rgba(12, 22, 44, 0.85); border-radius: 2px; }
 .track-card .medals .medal { width: 12px; height: 12px; opacity: 0.25; }
 .track-card .medals .medal.on { opacity: 1; }
 .track-card .top { display: flex; justify-content: space-between; align-items: flex-start; }

@@ -61,7 +61,11 @@ on the last checkpoint with the speed you had there.
   automatically where the road crosses a wall, dim inside with hanging lamps),
   steel truss supports under raised road, and decor around every track: cranes,
   container stacks, floodlights, LED screens, tanks, scaffolds, crates.
-- **Personal best ghost** and live checkpoint splits (blue = faster, red = slower).
+- **Ghosts:** your personal best (blue) and, on campaign tracks, the author
+  medal run (teal) to race against; <kbd>G</kbd> cycles both / yours / author / off.
+  Live checkpoint splits (blue = faster, red = slower).
+- **Track maps** on the campaign cards and **first-race hints** (controls,
+  checkpoints, respawn) until your first campaign finish.
 - **Surfaces:** asphalt, dirt, ice and grass, each with its own grip.
 - **Open track pieces (PolyTrack style):** plazas (open floors of platform cells
   with checkpoint / finish lines across their whole width, and turns across them),
@@ -194,7 +198,7 @@ npm run test:physics   # acceleration, braking, cornering, grip, loop, jump, wal
 npm run test:tracks    # the AI drives every campaign track
 npm run test:pieces    # plazas, wide gates, forks, open road, half-pipes
 npm run test:campaign  # each track matches its FS / TECH style and 30-45 s
-npm run medals         # recompute campaign medal times into src/track/medals.js
+npm run medals         # recompute medal times (src/track/medals.js) and author ghosts (src/track/authorGhosts.js)
 npm run build:car      # regenerate assets/models/rushline-racer.glb and .glb.js
 npm run test:browser   # drive the real game in headless Chrome (needs puppeteer-core)
 ```

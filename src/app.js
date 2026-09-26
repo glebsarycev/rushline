@@ -16,6 +16,7 @@ import { CarView } from './render/carModel.js';
 import { GlbCarView } from './render/glbCarView.js';
 import { loadCarAsset } from './render/carAsset.js';
 import { IndoorLighting } from './render/indoor.js';
+import { Ghost } from './game/ghost.js';
 import { Environment } from './render/environment.js';
 import { Particles, SkidMarks } from './render/effects.js';
 import { CameraRig } from './render/cameraRig.js';
@@ -102,6 +103,11 @@ export class App {
     this.ghostView = makeCar({ ghost: true });
     this.ghostView.object.visible = false;
     this.scene.add(this.ghostView.object);
+    // the author medal run of campaign tracks, raced alongside your personal best
+    this.authorView = makeCar({ ghost: 'author' });
+    this.authorView.object.visible = false;
+    this.scene.add(this.authorView.object);
+    this.indoor.patchObject(this.authorView.object);
     this.indoor.patchObject(this.carView.object);
     this.indoor.patchObject(this.ghostView.object);
     this.editor = new Editor(this);
@@ -209,6 +215,7 @@ export class App {
     this.context = null;
     this.carView.object.visible = true;
     this.ghostView.object.visible = false;
+    this.authorView.object.visible = false;
     this.ui.showHud(false);
     this.ui.showFinish(null);
     this.ui.showPause(false);
@@ -268,6 +275,14 @@ export class App {
     this._wireRace(this.race);
     this.bestRecord = ctx.from === 'editor' ? null : Records.getRecord(ctx.id);
     this.bestGhost = ctx.from === 'editor' ? this.editor.testGhost : Records.getGhost(ctx.id);
+    this.tutorial = ctx.from === 'campaign' && !loadStore('tutorial.done', false);
+    // author ghosts ship with the campaign (written by tests/medals.mjs), loaded on demand
+    this.authorGhost = null;
+    if (ctx.from === 'campaign') {
+      import('./track/authorGhosts.js').then((m) => {
+        if (this.context === ctx) this.authorGhost = Ghost.deserialize(m.AUTHOR_GHOSTS[ctx.id]);
+      }).catch(() => { /* no author ghost */ });
+    }
     this.mode = 'race';
     this.paused = false;
     this.ui.showScreen(null);
@@ -334,6 +349,7 @@ export class App {
   }
 
   _onFinish(e) {
+    if (this.tutorial) { this.tutorial = false; saveStore('tutorial.done', true); }
     const ctx = this.context;
     const ms = Math.round(e.time * 1000);
     const ghost = this.race.ghost();
@@ -413,7 +429,15 @@ export class App {
         case 'restart': if (this.paused) this.setPaused(false); this.restart(); break;
         case 'camera': this.settings.camera = this.rig.cycle(); this.ui.syncSettings(); this.ui.toast(`Camera: ${{ chase: 'close', far: 'far', hood: 'hood' }[this.rig.mode]}`); break;
         case 'cam1': case 'cam2': case 'cam3': this.rig.setMode(['chase', 'far', 'hood'][+a.slice(3) - 1]); break;
-        case 'ghost': this.settings.ghost = !this.settings.ghost; this.applySettings(); this.ui.toast(this.settings.ghost ? 'Ghost on' : 'Ghost off'); break;
+        case 'ghost': {
+          // both -> personal best only -> author only -> none
+          const s = this.settings, state = (s.ghost ? 1 : 0) + (s.authorGhost ? 2 : 0);
+          const next = { 3: 1, 1: 2, 2: 0, 0: 3 }[state];
+          s.ghost = !!(next & 1); s.authorGhost = !!(next & 2);
+          this.applySettings();
+          this.ui.toast(['Ghosts off', 'Your best ghost', 'Author ghost', 'Your best + author ghosts'][next]);
+          break;
+        }
         case 'mute': this.ui.toast(this.audio.toggleMute() ? 'Sound muted' : 'Sound on'); break;
         case 'next': if (fin && this.context.from === 'campaign') this.action('next'); break;
         case 'hud': this.ui.$('#hud').hidden = !this.ui.$('#hud').hidden; break;
@@ -525,6 +549,7 @@ export class App {
     if (this.env.stadium) this.env.stadium.visible = false;
     this.carView.object.visible = false;
     this.ghostView.object.visible = false;
+    this.authorView.object.visible = false;
     this.skids.clear(); this.smoke.clear(); this.sparks.clear();
     this.editor.open(trackEntry);
     this._maybeStartMusic();
@@ -543,6 +568,7 @@ export class App {
     if (this.env.stadium) this.env.stadium.visible = false;
     this.carView.object.visible = false;
     this.ghostView.object.visible = false;
+    this.authorView.object.visible = false;
     this.skids.clear(); this.smoke.clear(); this.sparks.clear();
     this.mode = 'editor';
     this.input.captureKeys = false;
@@ -687,6 +713,17 @@ export class App {
       const d = this.ghostPose.pos.distanceTo(P.pos);
       this.ghostView.mat.paint.opacity = clamp((d - 2) / 10, 0.08, 0.34);
     }
+    const showAuthor = this.mode === 'race' && this.settings.authorGhost && this.authorGhost;
+    this.authorView.object.visible = !!showAuthor;
+    if (showAuthor) {
+      const t = race.state === 'countdown' ? 0 : race.state === 'finished' ? race.finishTime + race.afterFinish : race.time;
+      const g = this.authorGhost.sample(t, this.ghostPose.pos, this.ghostPose.quat);
+      const spin = (this.authorSpin = (this.authorSpin || 0) + (g.speed / 0.42) * dt);
+      const wheels = [0, 1, 2, 3].map(() => ({ len: 0.3, spin }));
+      this.authorView.update({ pos: this.ghostPose.pos, quat: this.ghostPose.quat, wheels, steerAngle: g.steer * 0.3 }, dt);
+      const d = this.ghostPose.pos.distanceTo(P.pos);
+      this.authorView.mat.paint.opacity = clamp((d - 2) / 10, 0.06, 0.28);
+    }
 
     this._effects(dt);
 
@@ -716,8 +753,23 @@ export class App {
       this.ui.setVignette(clamp((car.speed - 55) / 60, 0, 0.9) + (P.boost ? 0.25 : 0));
       if (race.state === 'running' && race.stuckTime > 1.6) this.ui.hint(this.touch ? 'Stuck? Tap Respawn' : 'Stuck? Press <kbd>Enter</kbd> to respawn');
       else if (race.state === 'running' && car.pos.y < -2) this.ui.hint('Press <kbd>Enter</kbd> to respawn');
-      else this.ui.hint(null);
+      else this.ui.hint(this._tutorialHint(race, car));
     }
+  }
+
+  // First-race hints (until the first campaign finish), PolyTrack style
+  _tutorialHint(race, car) {
+    if (!this.tutorial || race.state === 'finished') return null;
+    const cps = race.cpTaken.size, total = this.track.checkpoints.length;
+    if (race.state === 'countdown' || (car.speed < 12 && race.time < 6)) {
+      return this.touch ? 'Hold the right pedal to go, tilt the stick to steer' : 'Hold <kbd>↑</kbd> or <kbd>W</kbd> to go · <kbd>←</kbd> <kbd>→</kbd> to steer';
+    }
+    if (cps === 0) return `Drive through the yellow checkpoint lines: all ${total} before the finish`;
+    if (cps < total || race.time - (race.splits[race.splits.length - 1] || 0) < 3.5) {
+      if (race.time - (race.splits[0] || 0) < 4) return this.touch ? 'Crashed? Respawn puts you back on the last checkpoint' : 'Crashed? <kbd>Enter</kbd> puts you back on the last checkpoint · <kbd>R</kbd> restarts';
+      return null;
+    }
+    return this.authorGhost ? 'Now the finish! Beat the teal ghost for the Author medal' : 'Now the finish!';
   }
 
   _effects(dt) {
