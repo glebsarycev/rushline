@@ -74,14 +74,20 @@ export class Bot {
     const v = car.speed;
     car.forward(_f); car.right(_r); car.up(_u);
 
-    const Ld = clamp(6 + v * 0.42, 8, 50);
+    const Ld = clamp(6 + v * 0.35, 8, 50);
     const tgt = route.at(pt.s + Ld);
     const dx = tgt.p[0] - pos[0], dy = tgt.p[1] - pos[1], dz = tgt.p[2] - pos[2];
     const x = dx * _r.x + dy * _r.y + dz * _r.z;
     const z = dx * _f.x + dy * _f.y + dz * _f.z;
     const alpha = Math.atan2(x, Math.max(z, 0.5));
     const kappa = (2 * Math.sin(alpha)) / Ld;
-    const delta = Math.atan(this.P.wheelbase * kappa);
+    let delta = Math.atan(this.P.wheelbase * kappa);
+    // the car can keep rotating after a bend (loose surfaces): damp the yaw rate beyond
+    // what the road needs; banked decks turn the car through their tilt, so not there
+    if (Math.abs(pt.r[1]) < 0.15) {
+      const want = -v * (pt.k || 0);
+      delta += 0.05 * (car.angVel.x * _u.x + car.angVel.y * _u.y + car.angVel.z * _u.z - want);
+    }
     const lim = Math.max(0.005, car.steerLimit(car.fwdSpeed));
     let steer = clamp(delta / lim, -1, 1);
 

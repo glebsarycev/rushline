@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { blockGeometry } from '../track/geometry.js';
-import { blockXform } from '../track/track.js';
+import { blockXform, needsCap } from '../track/track.js';
 
 const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'surface_grass', 'curb', 'deckEdge', 'bump', 'under', 'panelCP', 'panelStart', 'panelFinish',
   'hangarFloor', 'skylight', 'glassOut', 'sign', 'lamp', 'lampCool', 'stripOrange', 'beacon', 'screen']);
@@ -55,7 +55,7 @@ export function buildTrackMesh(track, materials) {
   for (const b of track.blocks) {
     const g = blockGeometry(b.type, b.surf, b.edge);
     append(acc, g.body.mats, b);
-    for (let i = 0; i < 2; i++) if (!b.links || !b.links[i]) append(acc, g.caps[i].mats, b);
+    for (let i = 0; i < 2; i++) if (needsCap(b, i)) append(acc, g.caps[i].mats, b);
   }
   if (track.pillars) append(acc, track.pillars.mats, null);
   if (track.scenery) append(acc, track.scenery.buf.mats, null);

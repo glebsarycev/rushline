@@ -44,17 +44,16 @@ function pipeProfile() {
   return segs;
 }
 
-// Low rounded border beside a surface of half width `w`: half a sine bump `bw` wide and
-// `bh` high, then the outer face down to the underside. Wheels can climb it, and the
-// slope pushes a car that runs wide back onto the road.
+// Rounded border beside a surface of half width `w`: a half ellipse `bw` wide and `bh`
+// high. Its inner face rises almost vertically, so a car that runs wide glances off it
+// like a low wall instead of riding up and taking off.
 function bumpEdges(w, bw, bh, mat) {
   const segs = [];
-  const n = 6;
+  const n = 8;
+  const at = (t) => { const a = Math.PI * t; return [w + (bw / 2) * (1 - Math.cos(a)), bh * Math.sin(a)]; };
   for (const side of [-1, 1]) {
     for (let i = 0; i < n; i++) {
-      const t0 = i / n, t1 = (i + 1) / n;
-      const u0 = w + bw * t0, u1 = w + bw * t1;
-      const v0 = bh * Math.sin(Math.PI * t0), v1 = bh * Math.sin(Math.PI * t1);
+      const [u0, v0] = at(i / n), [u1, v1] = at((i + 1) / n);
       const du = u1 - u0, dv = v1 - v0, l = Math.hypot(du, dv);
       segs.push([side * u0, v0, side * u1, v1, -side * dv / l, du / l, mat, 'wall']);
     }
@@ -363,7 +362,7 @@ export function buildFeatures(buf, def) {
     const tmp = new GeoBuffer();
     const half = EDGE_HALF[def.profile] ?? RH + WT;
     const W = (SURF_HALF[def.profile] ?? RH) - C;
-    if (def.feature === 'cp' || def.feature === 'finish') gate(tmp, def.feature, 0, half);
+    if (def.feature === 'cp' || def.feature === 'finish' || def.feature === 'start') gate(tmp, def.feature, 0, half);
     else if (def.feature === 'boost') pad(tmp, 'boostPad', W);
     else if (def.feature === 'superboost') pad(tmp, 'superPad', W);
     placeOnFrame(buf, tmp, def.featureFrame);
@@ -388,6 +387,7 @@ export function featureInfo(def) {
     const half = EDGE_HALF[def.profile] ?? RH + WT;
     const W = (SURF_HALF[def.profile] ?? RH) - C;
     if (def.feature === 'boost' || def.feature === 'superboost') return { type: 'boost', frame, halfLen: 9, halfWidth: W, strength: def.feature === 'boost' ? 1 : 2 };
+    if (def.feature === 'start') return { type: 'start', frame, spawnFrame: def.spawnFrame };
     return { type: def.feature, frame, halfWidth: half + 1.5 };
   }
   switch (def.feature) {

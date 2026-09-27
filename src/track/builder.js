@@ -84,8 +84,55 @@ export class TrackBuilder {
   // Parametric piece (sweep blocks in blocks.js) that starts where the road ends:
   // shape 's2' straight, 'r3' / 'l3' quarter turn; rise in levels; bank (degrees,
   // positive = right side down) and grade (%) at its end default to the current ones.
-  sweep(shape, { rise = 0, bank = this.bank, grade = this.grade, profile = this.profile } = {}) {
-    return this.place(sweepId(profile, shape, rise, this.bank, bank, this.grade, grade));
+  // feature: 'b' turbo, 'B' super turbo, 'c' checkpoint, 'f' finish, 's' start
+  // grade: the end grade in %, or 'smooth' (default): chosen at build() from the rises of
+  // the neighbouring pieces so a run of sweeps climbs and falls without kinks
+  sweep(shape, { rise = 0, bank = this.bank, grade = 'smooth', profile = this.profile, feature = '' } = {}) {
+    const smooth = grade === 'smooth';
+    const g1 = smooth ? 0 : grade;
+    this.place(sweepId(profile, shape, rise, this.bank, bank, this.grade, g1, feature));
+    const n = +shape.slice(1);
+    const e = this.blocks[this.blocks.length - 1];
+    if (!this.branching) {
+      e.sw = { profile, shape, rise, b0: +e[0].split('.')[4], b1: bank, feature, smooth,
+        L: shape[0] === 's' ? n * CELL : ((n - 0.5) * CELL * Math.PI) / 2 };
+    }
+    return this;
+  }
+
+  // Grades at the joints of consecutive sweep pieces: the slopes of the two neighbours
+  // blended without overshoot (monotone cubic), 0 where a climb turns into a fall or the
+  // run meets an ordinary block.
+  _smoothGrades() {
+    const B = this.blocks;
+    for (let i = 0; i < B.length; i++) {
+      const e = B[i];
+      if (!e.sw) continue;
+      const prev = i > 0 && B[i - 1].sw ? B[i - 1] : null;
+      const next = i < B.length - 1 && B[i + 1].sw ? B[i + 1] : null;
+      const m = (x) => (x.sw.rise * LEVEL) / x.sw.L;
+      const joint = (a, b) => {
+        if (!a || !b) return 0;
+        const ma = m(a), mb = m(b);
+        if (ma * mb <= 0) return 0;
+        return Math.round((100 * 2 * ma * mb) / (ma + mb));
+      };
+      const parts = e[0].split('.');
+      // id fields: sw.profile.shape.rise.b0.b1.g0.g1[.feature]
+      const g0 = prev ? (prev.sw.smooth ? joint(prev, e) : +prev[0].split('.')[7]) : +parts[6];
+      const g1 = e.sw.smooth ? joint(e, next) : +parts[7];
+      parts[6] = String(g0); parts[7] = String(g1);
+      e[0] = parts.join('.');
+    }
+    // the new grades reshape the pieces slightly: check they still fit
+    const occ = new Map();
+    for (const e of B.concat(this.extra)) {
+      for (const c of worldCells({ type: e[0], x: e[1], y: e[2], z: e[3], rot: e[4] })) {
+        const k = c.join(',');
+        if (occ.has(k) && occ.get(k) !== e) throw new Error(`overlap after smoothing grades: ${e[0]} at cell ${k}`);
+        occ.set(k, e);
+      }
+    }
   }
   // bring bank and grade back to zero over `n` cells (ordinary blocks need a flat end)
   level(n = 1, rise = 0) { return this.sweep('s' + n, { rise, bank: 0, grade: 0 }); }
@@ -96,6 +143,7 @@ export class TrackBuilder {
   // then becomes part of the line. Returns false when `skip` and the cell is taken.
   _put(type, bx, by, bz, rot, offLine = false, skip = false) {
     const cells = worldCells({ type, x: bx, y: by, z: bz, rot });
+    if (cells.some((c) => c[1] < 0)) throw new Error(`${type} at block ${this.blocks.length} reaches below the ground`);
     const n = this.blocks.length + this.extra.length;
     const plazaCell = ensureBlock(type).profile === 'platform' && cells.length === 1;
     for (const c of cells) {
@@ -212,6 +260,7 @@ export class TrackBuilder {
   get level() { return Math.round(this.pos[1] / LEVEL); }
 
   build(meta = {}) {
+    this._smoothGrades();
     const out = { ...meta, blocks: this.blocks.concat(this.extra).map((b) => b.slice()) };
     if (this.hangars.length) out.hangars = this.hangars.map((h) => h.slice());
     if (this.decor.length) out.decor = this.decor.map((d) => d.slice());

@@ -3,7 +3,7 @@
 
 import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, SLAB } from '../config.js';
 import { ensureBlock, worldPort, worldCells, worldFrame, rotXZ, portKey, vlerp, vnorm } from './blocks.js';
-import { blockGeometry, featureInfo, GeoBuffer } from './geometry.js';
+import { blockGeometry, blockProfile, featureInfo, GeoBuffer } from './geometry.js';
 import { CollisionWorld } from '../physics/collision.js';
 import { computeRoute } from './route.js';
 import { buildScenery, trussPillar, parseHangars } from './scenery.js';
@@ -12,6 +12,14 @@ import { buildScenery, trussPillar, parseHangars } from './scenery.js';
 export function blockXform(b) {
   const [c, s] = [[1, 0], [0, -1], [-1, 0], [0, 1]][b.rot & 3];
   return { c, s, ox: b.x * CELL, oy: b.y * LEVEL, oz: b.z * CELL };
+}
+
+// an end of a block gets a cap when nothing joins it there, or when the joined block has
+// a different cross-section (road into a wide deck)
+export function needsCap(b, i) {
+  const l = b.links && b.links[i];
+  if (!l) return true;
+  return blockProfile(l.b.def, l.b.edge) !== blockProfile(b.def, b.edge);
 }
 
 // append collision triangles (19 floats each) of `src` transformed by block `b`
@@ -173,6 +181,13 @@ export class Track {
   // checkpoint / finish / turbo on a sweep piece: gate and pad follow its bank and grade
   _sweepFeature(b, info) {
     const fr = worldFrame(b, info.frame);
+    if (info.type === 'start') {
+      if (!this.spawn) {
+        this.spawn = { pos: worldFrame(b, info.spawnFrame).p, heading: b.rot, fwd: fr.f };
+        this.startBlock = b;
+      }
+      return;
+    }
     if (info.type === 'boost') {
       this.boosts.push({ center: fr.p, fwd: fr.f, right: fr.r, up: fr.u, halfLen: info.halfLen, halfWidth: info.halfWidth, strength: info.strength, block: b });
       return;
@@ -225,7 +240,7 @@ export class Track {
     for (const b of this.blocks) {
       const g = blockGeometry(b.type, b.surf, b.edge);
       appendColl(tris, g.body.coll, b);
-      for (let i = 0; i < 2; i++) if (!b.links[i]) appendColl(tris, g.caps[i].coll, b);
+      for (let i = 0; i < 2; i++) if (needsCap(b, i)) appendColl(tris, g.caps[i].coll, b);
     }
     const base = new CollisionWorld();
     base.setTriangles(tris);

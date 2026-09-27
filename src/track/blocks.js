@@ -179,13 +179,17 @@ function computeCells(b) {
   const set = new Map();
   const [halfW, tall] = EXTENT[b.profile] || EXTENT.road;
   const fr = b.frames;
+  // sweep pieces may run below their entry level and tilt their ends; the classic
+  // blocks never reach below their own floor
+  const sweep = !!b.sweep;
   const add = (pt) => {
     const cx = Math.floor((pt[0] + HALF) / CELL);
     const cz = Math.floor((pt[2] + HALF) / CELL);
-    const cy = Math.floor(Math.max(0, pt[1] - 0.05) / LEVEL);
+    const cy = Math.floor((sweep ? pt[1] - 0.05 : Math.max(0, pt[1] - 0.05)) / LEVEL);
     const key = `${cx},${cy},${cz}`;
     if (!set.has(key)) set.set(key, [cx, cy, cz]);
   };
+  const L = fr[fr.length - 1].s;
   for (let i = 0; i < fr.length - 1; i++) {
     const a = fr[i], c = fr[i + 1];
     const d = vlen(vsub(c.p, a.p));
@@ -198,10 +202,21 @@ function computeCells(b) {
       const u = vnorm(vlerp(a.u, c.u, t));
       if (i === 0 && k === 0) p = vadd(p, vscale(f, 0.08));
       if (i === fr.length - 2 && k === steps) p = vsub(p, vscale(f, 0.08));
+      // a sloped, banked cross-section leans over the port face: at the very ends of
+      // a sweep only the centreline counts (the rest lies in the same cells anyway)
+      const s = a.s + (c.s - a.s) * t;
+      if (sweep && (s < 3 || s > L - 3)) { add(p); continue; }
       for (let w = -halfW; w <= halfW + 1e-6; w += halfW / 5) {
         add(vadd(p, vscale(r, w)));
         if (b.profile !== 'platform') add(vadd(vadd(p, vscale(r, w)), vscale(u, tall)));
       }
+    }
+  }
+  // gates stand ~9 m tall: they claim the level above, so no road can run through them
+  if (b.feature === 'cp' || b.feature === 'finish' || b.feature === 'start') {
+    const F = b.featureFrame || frameUp([0, ROAD_Y, b.feature === 'start' ? -6 : 0], [0, 0, -1]);
+    for (let w = -halfW; w <= halfW + 1e-6; w += halfW / 5) {
+      for (const h of [2, 5, 8.6]) add(vadd(vadd(F.p, vscale(F.r, w)), vscale(F.u, h)));
     }
   }
   return [...set.values()];
@@ -267,8 +282,8 @@ def('pipe3', { name: 'Half-Pipe Sweeper', cat: 'pipe', profile: 'pipe', path: ()
 //   (positive = right side down); g0, g1: grade in percent at entry / exit
 // Ports carry bank and grade so the builder can keep them continuous. They are
 // driven one way only (entered through port 0).
-const SW_RE = /^sw\.(road|tech|deck|platform)\.([slr])([1-9])\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)(?:\.([bBcf]))?$/;
-const SW_FEATURE = { b: 'boost', B: 'superboost', c: 'cp', f: 'finish' };
+const SW_RE = /^sw\.(road|tech|deck|platform)\.([slr])([1-9])\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)(?:\.([bBcfs]))?$/;
+const SW_FEATURE = { b: 'boost', B: 'superboost', c: 'cp', f: 'finish', s: 'start' };
 
 function sweepPath(shape, n, rise, b0, b1, g0, g1) {
   const R = (n - 0.5) * CELL;
@@ -296,7 +311,8 @@ function sweepPath(shape, n, rise, b0, b1, g0, g1) {
   return out;
 }
 
-// feature: optional 'b' turbo, 'B' super turbo, 'c' checkpoint, 'f' finish (placed mid-piece)
+// feature: optional 'b' turbo, 'B' super turbo, 'c' checkpoint, 'f' finish (placed mid-piece),
+// 's' start (flat straight pieces only)
 export function sweepId(profile, shape, rise, b0, b1, g0, g1, feature = '') {
   return `sw.${profile}.${shape}.${rise}.${b0}.${b1}.${g0}.${g1}` + (feature ? '.' + feature : '');
 }
@@ -311,6 +327,8 @@ export function ensureBlock(id) {
   const [rise, b0, b1, g0, g1] = rest.slice(0, 5).map(Number);
   const feature = SW_FEATURE[rest[5]] || null;
   if (Math.abs(b0) > 80 || Math.abs(b1) > 80 || Math.abs(rise) > 12) return null;
+  // the start needs a flat, straight piece (the car spawns level)
+  if (feature === 'start' && (shape !== 's' || rise || b0 || b1 || g0 || g1)) return null;
   const D = rise * LEVEL;
   const side = shape === 'l' ? -1 : 1;
   const exit = shape === 's'
@@ -322,8 +340,13 @@ export function ensureBlock(id) {
     path: () => sweepPath(shape, n, rise, b0, b1, g0, g1),
     ports: [P(0, 0, HALF, 2, { bank: b0, grade: g0 }), exit],
   }, false);
-  // features sit on the frame halfway along the piece
-  if (feature) b.featureFrame = frameAt(b.frames, b.length / 2);
+  // features sit on the frame halfway along the piece; the start gate stands a little
+  // ahead of the spawn point, as on the start block
+  if (feature === 'start') {
+    b.featureFrame = frameAt(b.frames, b.length / 2 + 6);
+    b.spawnFrame = frameAt(b.frames, b.length / 2 - 7);
+  } else if (feature) b.featureFrame = frameAt(b.frames, b.length / 2);
+  if (feature) b.cells = computeCells(b);
   return b;
 }
 
@@ -355,7 +378,7 @@ export function exitPort(def, entry) {
 
 // Transform a local port to world coordinates for a placed block
 export function worldPort(block, idx) {
-  const def = BLOCKS[block.type];
+  const def = ensureBlock(block.type);
   const lp = def.ports[idx];
   const [x, z] = rotXZ(lp.p[0], lp.p[2], block.rot);
   return {
@@ -367,7 +390,7 @@ export function worldPort(block, idx) {
 }
 
 export function worldCells(block) {
-  const def = BLOCKS[block.type];
+  const def = ensureBlock(block.type);
   return def.cells.map(([cx, cy, cz]) => {
     const [x, z] = rotXZ(cx, cz, block.rot);
     return [block.x + x, block.y + cy, block.z + z];
