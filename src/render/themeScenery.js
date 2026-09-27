@@ -13,6 +13,7 @@ import { CELL, HALF, DECK } from '../config.js';
 import { localToWorld } from '../track/track.js';
 import { loadNature, natureInstances } from './nature.js';
 import { buildValley } from './valley.js';
+import { buildSigns } from './signs.js';
 
 export class ThemeScenery {
   constructor(scene, textures) {
@@ -53,6 +54,8 @@ export class ThemeScenery {
     this.scene.add(g);
     this.anim = null;
     track.groundAt = null;
+    // direction signs on every track (before the mirror world copies the scene)
+    g.add(buildSigns(track, th.sign || '#15181d'));
     if (track.theme === 'violet') this._rings(g, track, rand);
     if (track.theme === 'mirror') this._mirrorWorld(g, track, rand, trackGroup);
     if (track.theme === 'valley') {

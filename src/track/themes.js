@@ -10,7 +10,7 @@ export const THEMES = {
   violet: {
     stadium: true, ground: 'lawn', autoDecor: ['screen', 'light'],
     wall: 0xcbbcff, glow: 0x9a4dff, glowI: 1.4, curb: 'curbViolet', lip: 0x4a2a8c, stunt: 'surface_violet', ribbon: 0xa45cff,
-    lamp: 0xb88aff,
+    lamp: 0xb88aff, sign: '#6a2fd8',
   },
   // abstract mirror world: no stadium, wooden towers, a mirror plane at ground level
   mirror: { stadium: false, ground: 'mirror', autoDecor: [], lip: 0x2b2f36, steel: 0x26292f },

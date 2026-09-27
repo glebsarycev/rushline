@@ -236,6 +236,35 @@ export function waterfall() {
   return toTex(c);
 }
 
+// direction sign: 'right', 'left', 'uright', 'uleft' (U-turn) or 'down', white on `bg`
+export function arrowSign(kind, bg = '#15181d') {
+  const W = 256, H = 192;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 6; ctx.strokeRect(9, 9, W - 18, H - 18);
+  ctx.save();
+  if (kind === 'left' || kind === 'uleft') { ctx.translate(W, 0); ctx.scale(-1, 1); }
+  ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 26; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const head = (x, y, ang) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(34, 0); ctx.lineTo(-18, -34); ctx.lineTo(-18, 34); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  };
+  ctx.beginPath();
+  if (kind === 'right' || kind === 'left') {
+    ctx.moveTo(92, 160); ctx.lineTo(92, 104); ctx.quadraticCurveTo(92, 72, 124, 72); ctx.lineTo(158, 72);
+    ctx.stroke(); head(170, 72, 0);
+  } else if (kind === 'uright' || kind === 'uleft') {
+    ctx.moveTo(80, 160); ctx.lineTo(80, 92); ctx.arc(128, 92, 48, Math.PI, 0); ctx.lineTo(176, 118);
+    ctx.stroke(); head(176, 130, Math.PI / 2);
+  } else {
+    ctx.moveTo(84, 48); ctx.lineTo(150, 114);
+    ctx.stroke(); head(160, 124, Math.PI / 4);
+  }
+  ctx.restore();
+  return toTex(c, { repeat: false });
+}
+
 // ---- walls / structures ------------------------------------------------------------
 // canvas x = across the wall height (0 = road level), canvas y = along the road
 export function wallFace() {

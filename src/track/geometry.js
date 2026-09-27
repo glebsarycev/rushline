@@ -282,26 +282,35 @@ export function cap(buf, fr, profileName, dir, collide = true) {
 // ---- block features (gates, pads) ------------------------------------------------
 const GATE_STYLE = { cp: 'CP', start: 'Start', finish: 'Finish' };
 
+// Trackmania-style arch: a flattened half ring over the road with a glowing band on
+// its underside and the gate's name at the crown. Its crown stays under 9 m, inside
+// the level above that the gate claims (see computeCells).
 function gate(buf, kind, z, half = RH + WT) {
   const style = GATE_STYLE[kind];
-  const postX = half + 1.0;
-  const top = ROAD_Y + 8.4;
+  const a = half + 1.2, b = 7.6;   // inner half span at the feet, inner crown height
+  const T = 1.2, D = 1.1;          // band thickness and half depth
+  const N = 28;
+  const at = (th, k) => [(a + k) * Math.cos(th), ROAD_Y + (b + k) * Math.sin(th)];
+  const nrm = (th) => { const nx = Math.cos(th) / a, ny = Math.sin(th) / b, l = Math.hypot(nx, ny); return [nx / l, ny / l, 0]; };
+  for (let i = 0; i < N; i++) {
+    const t0 = (Math.PI * i) / N, t1 = (Math.PI * (i + 1)) / N;
+    const [x0i, y0i] = at(t0, 0), [x1i, y1i] = at(t1, 0), [x0o, y0o] = at(t0, T), [x1o, y1o] = at(t1, T);
+    const n0 = nrm(t0), n1 = nrm(t1), m0 = vscale(n0, -1), m1 = vscale(n1, -1);
+    const u0 = i / N, u1 = (i + 1) / N;
+    buf.quad('gateFrame', [x0o, y0o, z + D], [x1o, y1o, z + D], [x1o, y1o, z - D], [x0o, y0o, z - D], n0, n1, n1, n0, [u0, 0], [u1, 0], [u1, 1], [u0, 1], null, n0);
+    buf.quad('glow' + style, [x0i, y0i, z - D], [x1i, y1i, z - D], [x1i, y1i, z + D], [x0i, y0i, z + D], m0, m1, m1, m0, [u0, 0], [u1, 0], [u1, 1], [u0, 1], null, m0);
+    for (const [zz, nz] of [[z + D, 1], [z - D, -1]]) {
+      const n = [0, 0, nz];
+      buf.quad('gateFrame', [x0i, y0i, zz], [x1i, y1i, zz], [x1o, y1o, zz], [x0o, y0o, zz], n, n, n, n, [u0, 0], [u1, 0], [u1, 1], [u0, 1], null, n);
+    }
+  }
+  // feet: solid, so the car cannot drive through them
   const base = ROAD_Y - SL;
-  const h = top - base;
-  // posts
-  buf.box('gateFrame', -postX, base + h / 2, z, 1.8, h, 1.8, SURF.WALL, 0.25);
-  buf.box('gateFrame', postX, base + h / 2, z, 1.8, h, 1.8, SURF.WALL, 0.25);
-  // beam
-  const beamY = ROAD_Y + 7.4;
-  buf.box('gateFrame', 0, beamY, z, 2 * postX + 1.8, 2.0, 1.4, SURF.WALL, 0.25);
-  // glowing text panels on both faces of the beam
-  const px = postX - 1.2, py0 = beamY - 0.8, py1 = beamY + 0.8, pz = 0.72;
-  buf.flat('panel' + style, [-px, py0, z + pz], [px, py0, z + pz], [px, py1, z + pz], [-px, py1, z + pz], [0, 0, 1], [0, 0], [1, 1]);
-  buf.flat('panel' + style, [px, py0, z - pz], [-px, py0, z - pz], [-px, py1, z - pz], [px, py1, z - pz], [0, 0, -1], [0, 0], [1, 1]);
-  // glow strips on the inner faces of the posts
-  const gx = postX - 0.91, gy0 = ROAD_Y + 0.3, gy1 = beamY - 1.05;
-  buf.flat('glow' + style, [-gx, gy0, z + 0.4], [-gx, gy0, z - 0.4], [-gx, gy1, z - 0.4], [-gx, gy1, z + 0.4], [1, 0, 0]);
-  buf.flat('glow' + style, [gx, gy0, z - 0.4], [gx, gy0, z + 0.4], [gx, gy1, z + 0.4], [gx, gy1, z - 0.4], [-1, 0, 0]);
+  for (const sx of [-1, 1]) buf.box('gateFrame', sx * (a + T / 2), base + 0.9, z, T + 0.6, 1.8, 2 * D + 0.6, SURF.WALL, 0.25);
+  // name panels on both faces at the crown
+  const pw = Math.min(10.4, a * 0.9), py0 = ROAD_Y + b + 0.05, py1 = py0 + pw / 8, pz = D + 0.03;
+  buf.flat('panel' + style, [-pw / 2, py0, z + pz], [pw / 2, py0, z + pz], [pw / 2, py1, z + pz], [-pw / 2, py1, z + pz], [0, 0, 1], [0, 0], [1, 1]);
+  buf.flat('panel' + style, [pw / 2, py0, z - pz], [-pw / 2, py0, z - pz], [-pw / 2, py1, z - pz], [pw / 2, py1, z - pz], [0, 0, -1], [0, 0], [1, 1]);
   // line painted across the road
   const y = ROAD_Y + 0.025, lw = half - WT;
   if (kind === 'finish') {
