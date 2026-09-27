@@ -35,8 +35,8 @@ for (const def of CAMPAIGN) {
     times.push(r == null ? 'x' : r.time.toFixed(3));
     if (r && (best == null || r.time < best.time)) best = r;
   }
-  // full-speed tracks: the never-lift line is a legal run too
-  if (def.style === 'fs') {
+  // full-speed and speed-tech tracks: the never-lift line is a legal run too
+  if (def.style === 'fs' || def.style === 'st') {
     const r = run(track, 1, true);
     times.push('ft ' + (r ? r.time.toFixed(3) : 'x'));
     if (r && (best == null || r.time < best.time)) best = r;

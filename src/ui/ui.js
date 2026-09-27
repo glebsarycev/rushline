@@ -17,6 +17,9 @@ export const CAR_COLORS = ['#ff3b30', '#ff8a00', '#ffd21a', '#2fd26e', '#18c1d6'
 
 const ARC_LEN = 200;
 
+const STYLE_LABEL = { fs: 'FULL SPEED', st: 'SPEED TECH', tech: 'TECH' };
+const STYLE_TIP = { fs: 'Full speed: never lift', st: 'Speed tech: flat out on tilted decks, pick your line', tech: 'Technical: brake for the corners' };
+
 export class UI {
   constructor(root, app) {
     this.root = root;
@@ -269,12 +272,14 @@ export class UI {
       const gi = got ? MEDALS.indexOf(got) : 99;
       if (got) medalCount++;
       const medals = [...MEDALS].reverse().map((m) => `<span class="medal ${m} ${MEDALS.indexOf(m) >= gi ? 'on' : ''}" title="${MEDAL_LABEL[m]}"></span>`).join('');
-      return `<button class="track-card" data-act="play-campaign" data-index="${i}">
-        <div class="top"><span class="num">${String(i + 1).padStart(2, '0')}</span><span class="chips">${t.style ? `<span class="chip style-${t.style}" title="${t.style === 'fs' ? 'Full speed: never lift' : 'Technical: brake for the corners'}">${t.style === 'fs' ? 'FS' : 'TECH'}</span>` : ''}<span class="chip ${t.env}">${ENV_LABEL[t.env] || t.env}</span></span></div>
+      const lock = t.locked ? `<div class="lock">Finish ${esc(t.lockedBy)} to unlock</div>` : '';
+      return `<button class="track-card${t.locked ? ' locked' : ''}" data-act="play-campaign" data-index="${i}"${t.locked ? ' aria-disabled="true"' : ''}>
+        <div class="top"><span class="num">${String(i + 1).padStart(2, '0')}</span><span class="chips">${t.style ? `<span class="chip style-${t.style}" title="${STYLE_TIP[t.style]}">${STYLE_LABEL[t.style]}</span>` : ''}<span class="chip ${t.env}">${ENV_LABEL[t.env] || t.env}</span></span></div>
         <div class="name">${esc(t.name)}</div>
         ${t.data ? '<canvas class="map" aria-hidden="true"></canvas>' : ''}
         <div class="row"><span class="muted">Best</span><span class="pb">${rec ? formatTime(rec.best) : '-:--.---'}</span></div>
         <div class="row"><span class="medals">${medals}</span><span class="muted tnum">Author ${t.medals ? formatTime(t.medals.author) : '-'}</span></div>
+        ${lock}
       </button>`;
     }).join('');
     grid.querySelectorAll('.track-card').forEach((card, i) => {

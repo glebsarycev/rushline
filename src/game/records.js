@@ -27,7 +27,7 @@ export function medalFor(ms, medals) {
 // medal thresholds from an author time (ms)
 export function medalsFromAuthor(author) {
   const r = (v) => Math.ceil(v / 10) * 10;
-  return { author: r(author), gold: r(author * 1.08), silver: r(author * 1.25), bronze: r(author * 1.55) };
+  return { author: r(author), gold: r(author * 1.06), silver: r(author * 1.2), bronze: r(author * 1.5) };
 }
 
 export function getRecord(trackId) {

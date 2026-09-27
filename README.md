@@ -44,14 +44,14 @@ on the last checkpoint with the speed you had there.
 
 ## What's in it
 
-- **Campaign:** 10 tracks. Hangar Run, then nine short PolyTrack-style tracks
-  (15-25 s): open plazas you cross on your own line, a fork with a risky jump
-  shortcut (Split Decision), half-pipes (Tube Rush), a wall-less sky deck, jumps
-  from plaza to plaza, an indoor drift yard and an indoor ice rink. Each track is
-  **FS** (full speed: never lift) or **TECH** (brake for the corners);
-  `tests/campaign.mjs` checks the style and the 15-25 s range. Bronze, Silver, Gold
-  and Author medals come from AI runs (`npm run medals`); on plazas the AI drives a
-  smoothed racing line (widest arc the open floor allows).
+- **Campaign:** 3 tracks of 35-45 s, one per Trackmania style, each built after the
+  "recipe" of a well-known map of that style: **Ultraviolet** (FULL SPEED, never lift:
+  turbos, banked decks, wall rides, a half-pipe and a loop), **Looking Glass** (SPEED
+  TECH: wide tilted decks spiralling down two towers, passing under itself) and
+  **Stillwater** (TECH: hairpins down a valley, grass, dirt and a jump off a cliff).
+  A track opens once the one before it is finished. `tests/campaign.mjs` checks each
+  style and the 30-50 s range. Bronze, Silver, Gold and Author medals come from AI runs
+  (`npm run medals`): Gold is the author time + 6%, Silver + 20%, Bronze + 50%.
 - **Premium environment:** four times of day (morning, day, sunset, night) and
   four landscapes (mountains, city, sea, canyon) chosen per track; skies and
   landscapes are Higgsfield pictures, the stadium is a TM2020-style bowl with

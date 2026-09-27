@@ -64,6 +64,7 @@ kbd {
 .chips { display: inline-flex; gap: 6px; }
 .chip.style-fs { color: #ff8a3d; border-color: rgba(255, 138, 61, 0.45); }
 .chip.style-tech { color: #5fd3ff; border-color: rgba(95, 211, 255, 0.45); }
+.chip.style-st { color: #ffd21a; border-color: rgba(255, 210, 26, 0.45); }
 .chip.morning { color: #ffc7a6; border-color: rgba(255, 199, 166, 0.35); }
 .chip.day { color: #ffd98a; border-color: rgba(255, 217, 138, 0.35); }
 .chip.sunset { color: #ffa36b; border-color: rgba(255, 163, 107, 0.35); }
@@ -126,6 +127,10 @@ kbd {
 .track-card .medals .medal { width: 12px; height: 12px; opacity: 0.25; }
 .track-card .medals .medal.on { opacity: 1; }
 .track-card .top { display: flex; justify-content: space-between; align-items: flex-start; }
+.track-card.locked { cursor: not-allowed; }
+.track-card.locked > :not(.lock) { opacity: 0.35; filter: grayscale(0.7); }
+.track-card.locked:hover { transform: none; border-color: rgba(255, 255, 255, 0.12); }
+.track-card .lock { font: 600 14px/1.2 var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; color: #ffd21a; }
 
 /* my tracks */
 .list { display: flex; flex-direction: column; gap: 10px; }

@@ -3,13 +3,14 @@
 // - the AI finishes without a respawn within TIME_RANGE (on 'fs' tracks it never brakes)
 // - 'fs' (full speed): a driver that never lifts or brakes also finishes cleanly
 // - 'tech': that same full-throttle driver crashes out or is clearly slower
+// - 'st' (speed tech): only the AI run is checked
 import { Track } from '../src/track/track.js';
 import { CAMPAIGN } from '../src/track/campaign.js';
 import { Race } from '../src/game/race.js';
 import { Bot } from '../src/game/bot.js';
 import { PHYS_DT } from '../src/config.js';
 
-export const TIME_RANGE = [15, 25]; // seconds (a track can override it with `time`)
+export const TIME_RANGE = [30, 50]; // seconds (a track can override it with `time`)
 
 export function drive(track, { fullThrottle = false, skill = 1, maxTime = 120 } = {}) {
   const race = new Race(track);

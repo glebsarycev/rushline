@@ -199,8 +199,14 @@ export class App {
     return this.track;
   }
 
+  // a campaign track opens once the one before it has been finished
   campaignEntries() {
-    return this.campaign.map((c) => ({ ...c, record: Records.getRecord(c.id) }));
+    return this.campaign.map((c, i) => ({
+      ...c,
+      record: Records.getRecord(c.id),
+      locked: i > 0 && !Records.getRecord(this.campaign[i - 1].id),
+      lockedBy: i > 0 ? this.campaign[i - 1].name : null,
+    }));
   }
 
   // ---- menu attract mode ------------------------------------------------------------------
@@ -255,6 +261,12 @@ export class App {
   playCampaign(index) {
     const c = this.campaign[index];
     if (!c) { this.enterMenu('campaign'); return; }
+    const entry = this.campaignEntries()[index];
+    if (entry.locked) {
+      this.ui.toast(`Finish ${entry.lockedBy} to unlock ${c.name}.`);
+      this.enterMenu('campaign');
+      return;
+    }
     this.playTrack({ id: c.id, name: c.name, data: c.data, medals: c.medals, style: c.style, from: 'campaign', index, sub: `Campaign ${String(index + 1).padStart(2, '0')}` });
   }
 
