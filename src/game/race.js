@@ -206,7 +206,8 @@ export class Race {
 
   _outOfBounds(dt) {
     const car = this.car, S = this.track.stadium;
-    if (car.pos.y < -30 || car.pos.x < S.minX - 50 || car.pos.x > S.maxX + 50 || car.pos.z < S.minZ - 50 || car.pos.z > S.maxZ + 50) {
+    const ground = this.track.groundAt ? this.track.groundAt(car.pos.x, car.pos.z) - 0.6 : -30;
+    if (car.pos.y < ground || car.pos.x < S.minX - 50 || car.pos.x > S.maxX + 50 || car.pos.z < S.minZ - 50 || car.pos.z > S.maxZ + 50) {
       this.emit('autoRespawn');
       return;
     }

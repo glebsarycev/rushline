@@ -753,6 +753,7 @@ export class App {
       this.rig.update(dt, P);
     }
     this.env.update(P.pos);
+    this.themeScenery.update(dt);
 
     // audio + HUD
     if (this.mode === 'race') {

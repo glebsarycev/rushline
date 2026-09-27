@@ -4,6 +4,7 @@
 //   violet: giant glowing rings floating around the stadium
 //   mirror: wooden towers inside the spirals, pillar islands with autumn trees, and
 //           the whole world reflected upside down in a mirror plane at ground level
+//   valley: terrain, a river and a waterfall, a rock cave, rocks and trees (valley.js)
 
 import * as THREE from 'three';
 import { themeOf } from '../track/themes.js';
@@ -11,6 +12,7 @@ import { rng, hashString } from '../util/math.js';
 import { CELL, HALF, DECK } from '../config.js';
 import { localToWorld } from '../track/track.js';
 import { loadNature, natureInstances } from './nature.js';
+import { buildValley } from './valley.js';
 
 export class ThemeScenery {
   constructor(scene, textures) {
@@ -49,8 +51,18 @@ export class ThemeScenery {
     const rand = rng(hashString('theme:' + track.id));
     this.group = g;
     this.scene.add(g);
+    this.anim = null;
+    track.groundAt = null;
     if (track.theme === 'violet') this._rings(g, track, rand);
     if (track.theme === 'mirror') this._mirrorWorld(g, track, rand, trackGroup);
+    if (track.theme === 'valley') {
+      const v = buildValley(g, track, this.T, hashString('valley:' + track.id));
+      // a car below the grass respawns; the cave is lit like a hangar interior
+      track.groundAt = v.groundAt;
+      if (track.scenery) track.scenery.indoor = track.scenery.indoor.concat(v.indoor);
+      this.anim = v.update;
+      this._plant(g, v.items);
+    }
     return th;
   }
 
@@ -68,7 +80,9 @@ export class ThemeScenery {
     }).catch((err) => console.warn('Nature models unavailable:', err && err.message ? err.message : err));
   }
 
-  update() {}
+  update(dt) {
+    if (this.anim) this.anim(dt);
+  }
 
   // ---- violet ------------------------------------------------------------------------------
   // Open bands (short wide cylinders) with glowing rims, alone or linked in clusters,

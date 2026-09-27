@@ -205,6 +205,37 @@ export function woodPlanks() {
   return toTex(c);
 }
 
+// water surface ripples, used as a normal map (tangent-space, mostly flat)
+export function waterNormal() {
+  const W = 256, H = 256;
+  const [c, ctx] = canvas(W, H);
+  const img = ctx.createImageData(W, H);
+  const f = (x, y) => Math.sin(x * 0.098 + Math.sin(y * 0.05) * 1.6) + Math.sin(y * 0.123 + Math.sin(x * 0.07) * 1.3) * 0.8 + Math.sin((x + y) * 0.21) * 0.35;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = f(x + 1, y) - f(x - 1, y), dy = f(x, y + 1) - f(x, y - 1);
+    const n = [-dx * 0.35, -dy * 0.35, 1];
+    const l = Math.hypot(...n);
+    const i = (y * W + x) * 4;
+    img.data[i] = (n[0] / l * 0.5 + 0.5) * 255; img.data[i + 1] = (n[1] / l * 0.5 + 0.5) * 255; img.data[i + 2] = (n[2] / l * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return toTex(c, { srgb: false });
+}
+
+// falling water: white and teal streaks, canvas y = down the fall
+export function waterfall() {
+  const W = 128, H = 256;
+  const [c, ctx] = canvas(W, H);
+  const rand = rng(77);
+  ctx.fillStyle = '#7fd3dc'; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 90; i++) {
+    const x = rand() * W, w = 1 + rand() * 4, y = rand() * H, h = 40 + rand() * 160;
+    ctx.fillStyle = `rgba(255,255,255,${0.25 + rand() * 0.6})`;
+    ctx.fillRect(x, y, w, h); ctx.fillRect(x, y - H, w, h);
+  }
+  return toTex(c);
+}
+
 // ---- walls / structures ------------------------------------------------------------
 // canvas x = across the wall height (0 = road level), canvas y = along the road
 export function wallFace() {
@@ -637,6 +668,8 @@ export function createTextures() {
     curbGreen: curb('#2f9a55'),
     techBump: techBump(),
     wood: woodPlanks(),
+    waterNormal: waterNormal(),
+    waterfall: waterfall(),
     deckEdge: deckEdge(),
     wall: wallFace(),
     wallGlow: wallGlowMask(),
