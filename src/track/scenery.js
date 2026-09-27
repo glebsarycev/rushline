@@ -9,6 +9,7 @@
 
 import { CELL, LEVEL, HALF, SURF } from '../config.js';
 import { GeoBuffer } from './geometry.js';
+import { themeOf } from './themes.js';
 import { worldCells, rotXZ, DIRS } from './blocks.js';
 import { rng, hashString } from '../util/math.js';
 import { insideField } from './stadiumShape.js';
@@ -463,7 +464,7 @@ function nearestDir(list, x, z) {
   return dz > 0 ? 2 : 0;
 }
 
-function autoDecor(track, occ, hangars, manual) {
+function autoDecor(track, occ, hangars, manual, kinds = null) {
   const S = track.stadium;
   const xMin = Math.ceil((S.minX + HALF + 10) / CELL), xMax = Math.floor((S.maxX - HALF - 10) / CELL);
   const zMin = Math.ceil((S.minZ + HALF + 10) / CELL), zMax = Math.floor((S.maxZ - HALF - 10) / CELL);
@@ -517,7 +518,7 @@ function autoDecor(track, occ, hangars, manual) {
       } else if (r < 0.14) {
         type = pick([['crane', cranes < 3 ? 3 : 0], ['screen', 2], ['tanks', 2], ['scaffold', 2], ['light', 2], ['containers', 2]]);
       }
-      if (!type) continue;
+      if (!type || (kinds && !kinds.includes(type))) continue;
       if (type === 'crane') cranes++;
       const rot = type === 'screen' || type === 'light' ? near : (rand() * 4) | 0;
       out.push([type, x, z, rot]);
@@ -537,7 +538,8 @@ export function buildScenery(track, { auto = true } = {}) {
   // manual decor that a block or a hangar roof now sits on is skipped
   const manual = (track.data.decor || []).filter((d) => Array.isArray(d) && DECOR[d[0]] &&
     !occ.cols.has((d[1] | 0) + ',' + (d[2] | 0)) && !(DECOR[d[0]].tall && hangars.some((h) => hangarContains(h, d[1] | 0, d[2] | 0))));
-  const auto_ = auto ? autoDecor(track, occ, hangars, manual) : [];
+  const kinds = themeOf(track.theme).autoDecor;
+  const auto_ = auto && (!kinds || kinds.length) ? autoDecor(track, occ, hangars, manual, kinds) : [];
   const ctx = { craneTop: Math.max(CRANE_TOP_MIN, (track.bbox?.maxY || 0) + 26) };
   for (const d of manual) buildDecor(buf, d[0], d[1] | 0, d[2] | 0, d[3] | 0, decorSeed(d[0], d[1], d[2]), ctx);
   auto_.forEach((d, i) => buildDecor(buf, d[0], d[1], d[2], d[3], hashString(track.id) + i * 7919, ctx));

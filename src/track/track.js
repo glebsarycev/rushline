@@ -101,6 +101,7 @@ export class Track {
     this.author = data.author || 'Unknown';
     this.env = data.env || 'day';
     this.land = data.land || 'mountains';
+    this.theme = data.theme || 'classic';
     this.medals = data.medals || null;
     this.blocks = parseBlocks(data.blocks || []);
     this._ports();

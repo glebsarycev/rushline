@@ -4,6 +4,7 @@
 // however many lamps a track has.
 
 import * as THREE from 'three';
+import { themeOf } from '../track/themes.js';
 
 const MAX_BOX = 8;
 const MAX_LAMPS = 24;
@@ -92,6 +93,7 @@ export class IndoorLighting {
   // hangar boxes and lamps of a built track (track.scenery.indoor)
   setTrack(track) {
     const list = (track && track.scenery ? track.scenery.indoor : []).slice(0, MAX_BOX);
+    this.uniforms.uLampColor.value.set(themeOf(track && track.theme).lamp ?? 0xffc68a).multiplyScalar(7);
     this.boxes = list;
     list.forEach((h, i) => {
       this.uniforms.uIndoorMin.value[i].set(h.min[0], -50, h.min[2]);

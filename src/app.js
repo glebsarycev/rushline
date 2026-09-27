@@ -16,6 +16,8 @@ import { CarView } from './render/carModel.js';
 import { GlbCarView } from './render/glbCarView.js';
 import { loadCarAsset } from './render/carAsset.js';
 import { IndoorLighting } from './render/indoor.js';
+import { applyThemeMaterials } from './render/themes.js';
+import { ThemeScenery } from './render/themeScenery.js';
 import { Ghost } from './game/ghost.js';
 import { Environment } from './render/environment.js';
 import { Particles, SkidMarks } from './render/effects.js';
@@ -81,6 +83,7 @@ export class App {
     this.env = new Environment(renderer, this.scene, this.textures);
     // hangar interiors: dim sun/sky inside, lamp light pools
     this.indoor = new IndoorLighting();
+    this.themeScenery = new ThemeScenery(this.scene);
     for (const m of Object.values(this.materials)) this.indoor.patch(m);
     this.indoor.patch(this.env.groundMat);
     this.post = new Post(renderer, this.scene, this.camera);
@@ -112,7 +115,7 @@ export class App {
     this.indoor.patchObject(this.ghostView.object);
     this.editor = new Editor(this);
 
-    this.campaign = CAMPAIGN.map((def) => ({ ...def, data: { ...def.build(), env: def.env, land: def.land, name: def.name } }));
+    this.campaign = CAMPAIGN.map((def) => ({ ...def, data: { ...def.build(), env: def.env, land: def.land, theme: def.theme, name: def.name } }));
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -186,10 +189,12 @@ export class App {
     this.track = new Track({ ...data, id });
     this.trackGroup = buildTrackMesh(this.track, this.materials);
     this.scene.add(this.trackGroup);
-    this.env.setPreset(this.track.env, this.track.land);
+    this.env.setPreset(this.track.env, this.track.land, this.track.theme);
     applyMaterialMood(this.materials, this.track.env);
+    applyThemeMaterials(this.materials, this.textures, this.track.theme, this.track.env);
     this.carView.setHeadlights(this.track.env === 'night');
     this.env.buildStadium(this.track);
+    this.themeScenery.build(this.track);
     this.indoor.setTrack(this.track);
     this.indoor.setEnabled(true);
     this.perf.hold = 2; // shaders and textures warm up after a track change

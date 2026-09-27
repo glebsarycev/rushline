@@ -53,6 +53,7 @@ export const CAMPAIGN = [
       .straight(1).pipe(1).pipeRight(3)              // -> S
       .pipe(1).straight(1).boost()
       .finish()
+      .hangar(-7, -31, -5, -28)                      // the finish hall
       .build(),
   },
   {

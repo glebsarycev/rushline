@@ -146,10 +146,10 @@ export function platformTiles() {
   return toTex(c);
 }
 
-export function curb() {
+export function curb(color = '#d8322c') {
   const W = 64, H = 256;
   const [c, ctx] = canvas(W, H);
-  ctx.fillStyle = '#d8322c'; ctx.fillRect(0, 0, W, H / 2);
+  ctx.fillStyle = color; ctx.fillRect(0, 0, W, H / 2);
   ctx.fillStyle = '#f1f1ee'; ctx.fillRect(0, H / 2, W, H / 2);
   const g = ctx.createLinearGradient(0, 0, W, 0);
   g.addColorStop(0, 'rgba(0,0,0,0.25)'); g.addColorStop(0.15, 'rgba(0,0,0,0)'); g.addColorStop(0.85, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.3)');
@@ -611,6 +611,8 @@ export function createTextures() {
     ice: ice(),
     platform: platformTiles(),
     curb: curb(),
+    curbViolet: curb('#7a3cf0'),
+    curbGreen: curb('#2f9a55'),
     techBump: techBump(),
     deckEdge: deckEdge(),
     wall: wallFace(),

@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { SkyDome, LANDS } from './sky.js';
 import { Stadium } from './stadium.js';
+import { themeOf, applyThemeStadium } from './themes.js';
 
 // Time-of-day presets. The sky picture sets the sun position; `sunAz` turns the
 // picture so its sun sits at that world azimuth (0 = north / -Z, 90 = east / +X),
@@ -136,12 +137,16 @@ export class Environment {
 
   // Apply a time of day and landscape. Lights change at once; the sky picture
   // swaps in (and the reflections are re-baked) as soon as it has loaded.
-  setPreset(name, land = 'mountains') {
+  setPreset(name, land = 'mountains', theme = 'classic') {
     if (!ENV_PRESETS[name]) name = 'day';
     if (!LANDS[land]) land = 'mountains';
-    if (this.preset === name && this.land === land) return this.ready || Promise.resolve();
+    const th = themeOf(theme);
+    // the lawn only where the theme has one (the mirror world and the valley bring their own ground)
+    this.ground.visible = th.ground === 'lawn';
+    if (this.preset === name && this.land === land && this.theme === theme) return this.ready || Promise.resolve();
     this.preset = name;
     this.land = land;
+    this.theme = theme;
     const P = (this.P = ENV_PRESETS[name]);
     this.hemi.color.set(P.hemiSky);
     this.hemi.groundColor.set(P.hemiGround);
@@ -157,7 +162,7 @@ export class Environment {
     for (const m of this.lampMats) m.emissiveIntensity = P.lampI;
     this.bowl.setMood(P);
     const v = ++this.version;
-    this.ready = this.sky.set({ ...P, haze: haze.toArray() }, land).then(() => {
+    this.ready = this.sky.set({ ...P, haze: haze.toArray() }, land, { mirror: th.ground === 'mirror' }).then(() => {
       if (v !== this.version) return;
       const el = Math.max(this.sky.sunElevation, THREE.MathUtils.degToRad(P.sunElMin));
       const az = this.sky.sunAzimuth;
@@ -200,16 +205,20 @@ export class Environment {
     this.bowl.update(performance.now() / 1000);
   }
 
-  // TM2020-style stadium bowl around the play area of a track.
+  // TM2020-style stadium bowl around the play area of a track (themes without a
+  // stadium get none).
   buildStadium(track) {
     if (this.stadium) {
       this.scene.remove(this.stadium);
       this.stadium.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+      this.stadium = null;
     }
+    if (!themeOf(track.theme).stadium) return;
     this.stadium = this.bowl.build(track.stadium);
     const S = track.stadium;
     this.fieldU.value.set(S.minX, S.minZ, S.maxX, S.maxZ);
     this.bowl.setMood(this.P || ENV_PRESETS.day);
+    applyThemeStadium(this.bowl, track.theme);
     this.scene.add(this.stadium);
   }
 }

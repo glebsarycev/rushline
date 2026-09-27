@@ -4,13 +4,15 @@
 import * as THREE from 'three';
 import { blockGeometry } from '../track/geometry.js';
 import { blockXform, needsCap } from '../track/track.js';
+import { themeOf } from '../track/themes.js';
 
-const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'surface_grass', 'curb', 'deckEdge', 'bump', 'under', 'panelCP', 'panelStart', 'panelFinish',
+const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'surface_grass', 'surface_violet', 'curb', 'deckEdge', 'bump', 'under', 'panelCP', 'panelStart', 'panelFinish',
   'hangarFloor', 'skylight', 'glassOut', 'sign', 'lamp', 'lampCool', 'stripOrange', 'beacon', 'screen']);
 
-function append(acc, mats, b) {
-  for (const key in mats) {
-    const src = mats[key];
+function append(acc, mats, b, remap = null) {
+  for (const key0 in mats) {
+    const src = mats[key0];
+    const key = (remap && remap[key0]) || key0;
     let a = acc.get(key);
     if (!a) acc.set(key, (a = { pos: [], nrm: [], uv: [] }));
     if (!b) {
@@ -49,12 +51,15 @@ function toMeshes(acc, materials, group) {
   return group;
 }
 
-// Whole track, merged by material.
+// Whole track, merged by material. The theme may give stunt blocks (wall rides,
+// loops, banks, pipes) their own road surface.
 export function buildTrackMesh(track, materials) {
   const acc = new Map();
+  const stunt = themeOf(track.theme).stunt;
+  const remap = stunt ? { surface_road: stunt } : null;
   for (const b of track.blocks) {
     const g = blockGeometry(b.type, b.surf, b.edge);
-    append(acc, g.body.mats, b);
+    append(acc, g.body.mats, b, b.def.cat === 'stunt' || b.def.cat === 'pipe' ? remap : null);
     for (let i = 0; i < 2; i++) if (needsCap(b, i)) append(acc, g.caps[i].mats, b);
   }
   if (track.pillars) append(acc, track.pillars.mats, null);

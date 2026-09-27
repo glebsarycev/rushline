@@ -16,6 +16,8 @@ export function createMaterials(T) {
     surface_ice: std({ map: T.ice, roughness: 0.1, metalness: 0.05, envMapIntensity: 1.5 }),
     surface_platform: std({ map: T.platform, roughness: 0.72, metalness: 0.08 }),
     surface_grass: std({ map: T.grass, roughness: 0.95 }),
+    // stunt surfaces (wall rides, loops, pipes) of the violet theme
+    surface_violet: std({ map: T.asphalt, color: 0xc3a6ff, emissive: 0x4a1fb0, emissiveIntensity: 0.45, roughness: 0.5, metalness: 0.1 }),
     curb: std({ map: T.curb, roughness: 0.65 }),
     bump: std({ map: T.techBump, roughness: 0.55 }),
     deckEdge: std({ map: T.deckEdge, roughness: 0.8 }),

@@ -51,6 +51,7 @@ uniform float uHazeAmt;
 uniform float uWater;
 uniform float uWindows;
 uniform vec3 uGround;
+uniform float uMirror;
 varying vec3 vDir;
 
 #define PI 3.14159265359
@@ -75,6 +76,9 @@ void main() {
   float el = asin(clamp(d.y, -1.0, 1.0));
   vec2 gAz = vec2(dWrap(dFdx(az)), dWrap(dFdy(az)));
   vec2 gEl = vec2(dFdx(el), dFdy(el));
+  // mirror world: below the horizon the whole sky, landscape and sun are reflected
+  float mirrored = uMirror > 0.5 && el < 0.0 ? 1.0 : 0.0;
+  if (mirrored > 0.5) { el = -el; gEl = -gEl; d.y = -d.y; }
 
   vec3 col = skyAt(az, el, gAz, gEl);
 
@@ -123,6 +127,7 @@ void main() {
     float s = max(dot(d, uSunDir), 0.0);
     col += uSunGlow * (pow(s, 2400.0) * 12.0 + pow(s, 90.0) * 0.35);
   }
+  if (mirrored > 0.5) col *= vec3(0.82, 0.84, 0.88);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -155,7 +160,7 @@ export class SkyDome {
       uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunGlow: { value: new THREE.Color(0, 0, 0) },
       uLand: { value: EMPTY }, uLandOn: { value: 0 }, uCopies: { value: 4 }, uBase: { value: 0 }, uHeight: { value: 0.5 },
       uLandLight: { value: new THREE.Color(1, 1, 1) }, uHaze: { value: new THREE.Color(0.7, 0.8, 0.9) }, uHazeAmt: { value: 0.3 },
-      uWater: { value: 0 }, uWindows: { value: 0 }, uGround: { value: new THREE.Color(0.2, 0.25, 0.2) },
+      uWater: { value: 0 }, uWindows: { value: 0 }, uGround: { value: new THREE.Color(0.2, 0.25, 0.2) }, uMirror: { value: 0 },
     };
     this.material = new THREE.ShaderMaterial({
       vertexShader: VS, fragmentShader: FS, uniforms: this.uniforms,
@@ -173,8 +178,9 @@ export class SkyDome {
     return Promise.all([loadTexture(SKIES[sky].file), land && LANDS[land] ? loadTexture(LANDS[land].file) : null]);
   }
 
-  // time of day preset P (see ENV_PRESETS) and landscape id; resolves when textures are in
-  async set(P, landId) {
+  // time of day preset P (see ENV_PRESETS) and landscape id; resolves when textures are in.
+  // mirror: the lower half of the sky reflects the upper half (mirror world theme)
+  async set(P, landId, { mirror = false } = {}) {
     const S = SKIES[P.sky];
     const L = LANDS[landId] || null;
     const [skyTex, landTex] = await this.preload(P.sky, landId);
@@ -195,6 +201,7 @@ export class SkyDome {
     U.uLandLight.value.set(P.landLight);
     U.uGround.value.set(P.groundHaze);
     U.uLandOn.value = L ? 1 : 0;
+    U.uMirror.value = mirror ? 1 : 0;
     if (L) {
       U.uLand.value = landTex;
       U.uCopies.value = L.copies;
