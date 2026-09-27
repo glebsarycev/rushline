@@ -183,6 +183,28 @@ export function deckEdge() {
   return toTex(c);
 }
 
+// warm vertical planks (mirror world towers), canvas y = up the tower
+export function woodPlanks() {
+  const W = 512, H = 512;
+  const [c, ctx] = canvas(W, H);
+  const rand = rng(91);
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const t = rand();
+    ctx.fillStyle = `rgb(${(204 + t * 30) | 0},${(164 + t * 26) | 0},${(118 + t * 22) | 0})`;
+    ctx.fillRect((W / n) * i, 0, W / n, H);
+    // grain
+    for (let k = 0; k < 26; k++) {
+      ctx.fillStyle = `rgba(90,52,24,${0.05 + rand() * 0.08})`;
+      ctx.fillRect((W / n) * i + rand() * (W / n), 0, 1 + rand() * 2, H);
+    }
+    ctx.fillStyle = 'rgba(60,34,16,0.55)';
+    ctx.fillRect((W / n) * i, 0, 2, H);
+  }
+  speckle(ctx, W, H, rand, 4000, ['#6b4020', '#e2b27a'], 1, 2, 0.15);
+  return toTex(c);
+}
+
 // ---- walls / structures ------------------------------------------------------------
 // canvas x = across the wall height (0 = road level), canvas y = along the road
 export function wallFace() {
@@ -614,6 +636,7 @@ export function createTextures() {
     curbViolet: curb('#7a3cf0'),
     curbGreen: curb('#2f9a55'),
     techBump: techBump(),
+    wood: woodPlanks(),
     deckEdge: deckEdge(),
     wall: wallFace(),
     wallGlow: wallGlowMask(),

@@ -83,7 +83,7 @@ export class App {
     this.env = new Environment(renderer, this.scene, this.textures);
     // hangar interiors: dim sun/sky inside, lamp light pools
     this.indoor = new IndoorLighting();
-    this.themeScenery = new ThemeScenery(this.scene);
+    this.themeScenery = new ThemeScenery(this.scene, this.textures);
     for (const m of Object.values(this.materials)) this.indoor.patch(m);
     this.indoor.patch(this.env.groundMat);
     this.post = new Post(renderer, this.scene, this.camera);
@@ -194,7 +194,7 @@ export class App {
     applyThemeMaterials(this.materials, this.textures, this.track.theme, this.track.env);
     this.carView.setHeadlights(this.track.env === 'night');
     this.env.buildStadium(this.track);
-    this.themeScenery.build(this.track);
+    this.themeScenery.build(this.track, this.trackGroup);
     this.indoor.setTrack(this.track);
     this.indoor.setEnabled(true);
     this.perf.hold = 2; // shaders and textures warm up after a track change

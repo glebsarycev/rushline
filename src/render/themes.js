@@ -13,6 +13,7 @@ export function applyThemeMaterials(M, T, id, env) {
   if (!defaults) {
     defaults = {
       wall: M.wall.color.getHex(), glow: M.wall.emissive.getHex(), curb: M.curb.map, lip: M.lip.color.getHex(),
+      steel: M.steel.color.getHex(),
     };
   }
   const th = themeOf(id);
@@ -22,6 +23,7 @@ export function applyThemeMaterials(M, T, id, env) {
   M.curb.map = (th.curb && T[th.curb]) || defaults.curb;
   M.curb.needsUpdate = true;
   M.lip.color.setHex(th.lip ?? defaults.lip);
+  M.steel.color.setHex(th.steel ?? defaults.steel);
 }
 
 // Stadium LED ribbons and boards take the theme colour

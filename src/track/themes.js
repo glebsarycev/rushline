@@ -13,7 +13,7 @@ export const THEMES = {
     lamp: 0xb88aff,
   },
   // abstract mirror world: no stadium, wooden towers, a mirror plane at ground level
-  mirror: { stadium: false, ground: 'mirror', autoDecor: [], lip: 0x2b2f36 },
+  mirror: { stadium: false, ground: 'mirror', autoDecor: [], lip: 0x2b2f36, steel: 0x26292f },
   // mountain valley: no stadium, terrain, rocks, a river and a cave
   valley: { stadium: false, ground: 'terrain', autoDecor: [], curb: 'curbGreen' },
 };
