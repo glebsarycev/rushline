@@ -14,6 +14,10 @@ export const LOOP_R = 26;      // loop radius
 // half-pipe cross-section: road-width floor, quarter circles, vertical walls
 export const PIPE = { floor: 10, radius: 5.5, rise: 3.0, curl: 120, lip: 0.5 };
 PIPE.wall = PIPE.radius + PIPE.rise + PIPE.radius * Math.sin((PIPE.curl * Math.PI) / 180) + PIPE.lip; // total height
+// tech road: road width with low rounded borders instead of walls
+export const TECH = { bump: 2.0, bumpH: 0.8 };
+// deck: wide open road (speed tech), a low rounded lip marks the edge
+export const DECK = { half: 14, lip: 1.6, lipH: 0.5 };
 export const GRID_MIN = -24;   // editor grid limits (cells)
 export const GRID_MAX = 24;
 export const MAX_LEVEL = 20;
@@ -37,8 +41,8 @@ export const SURFACES = [
   { id: 5, key: 'platform', grip: 1.0, roll: 0.10, rearDrift: 1.0, dust: 0 },
 ];
 
-export const SURFACE_VARIANTS = ['road', 'dirt', 'ice'];
-export const VARIANT_SURF = { road: SURF.ROAD, dirt: SURF.DIRT, ice: SURF.ICE, platform: SURF.PLATFORM };
+export const SURFACE_VARIANTS = ['road', 'dirt', 'ice', 'grass'];
+export const VARIANT_SURF = { road: SURF.ROAD, dirt: SURF.DIRT, ice: SURF.ICE, grass: SURF.GRASS, platform: SURF.PLATFORM };
 
 // ---- Medals -----------------------------------------------------------------
 export const MEDALS = ['author', 'gold', 'silver', 'bronze'];

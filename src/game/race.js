@@ -9,6 +9,8 @@ export const COUNTDOWN = 2.1; // seconds (3 - 2 - 1 - GO)
 const _gf = new THREE.Vector3(), _gu = new THREE.Vector3(), _gq = new THREE.Quaternion(), _gq2 = new THREE.Quaternion();
 
 // Fraction along a->b where the segment crosses the gate plane, or -1.
+const UP = [0, 1, 0];
+
 export function crossGate(g, a, b) {
   const c = g.center, f = g.fwd;
   const da = (a.x - c[0]) * f[0] + (a.y - c[1]) * f[1] + (a.z - c[2]) * f[2];
@@ -16,8 +18,10 @@ export function crossGate(g, a, b) {
   if (da === db || (da > 0) === (db > 0)) return -1;
   const t = da / (da - db);
   const px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t, pz = a.z + (b.z - a.z) * t;
-  const lat = (px - c[0]) * g.right[0] + (pz - c[2]) * g.right[2];
-  const h = py - c[1];
+  // measured in the gate's own frame (tilted gates on banked pieces)
+  const ex = px - c[0], ey = py - c[1], ez = pz - c[2];
+  const lat = ex * g.right[0] + ey * g.right[1] + ez * g.right[2];
+  const h = ex * g.up[0] + ey * g.up[1] + ez * g.up[2];
   if (Math.abs(lat) > g.halfWidth || h < -2.5 || h > g.height) return -1;
   return t;
 }
@@ -187,9 +191,11 @@ export class Race {
     for (const bz of this.track.boosts) {
       const c = bz.center;
       const dx = p.x - c[0], dy = p.y - c[1], dz = p.z - c[2];
-      const along = dx * bz.fwd[0] + dz * bz.fwd[2];
-      const lat = dx * bz.right[0] + dz * bz.right[2];
-      if (Math.abs(along) < bz.halfLen && Math.abs(lat) < bz.halfWidth + 0.6 && dy > -1 && dy < 3) { on = bz; break; }
+      const up = bz.up || UP;
+      const along = dx * bz.fwd[0] + dy * bz.fwd[1] + dz * bz.fwd[2];
+      const lat = dx * bz.right[0] + dy * bz.right[1] + dz * bz.right[2];
+      const h = dx * up[0] + dy * up[1] + dz * up[2];
+      if (Math.abs(along) < bz.halfLen && Math.abs(lat) < bz.halfWidth + 0.6 && h > -1 && h < 3) { on = bz; break; }
     }
     if (on) {
       this.car.applyBoost(on.strength);

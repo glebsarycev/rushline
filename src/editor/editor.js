@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { CELL, LEVEL, ROAD_Y, GRID_MIN, GRID_MAX, MAX_LEVEL, SURFACE_VARIANTS } from '../config.js';
-import { BLOCKS, BLOCK_LIST, CATEGORIES, worldCells, worldPort, portKey, DIRS } from '../track/blocks.js';
+import { BLOCKS, BLOCK_LIST, CATEGORIES, worldCells, worldPort, portKey, DIRS, ensureBlock } from '../track/blocks.js';
 import { buildBlockMesh, buildBufferMesh } from '../render/trackMesh.js';
 import { GeoBuffer } from '../track/geometry.js';
 import { Track } from '../track/track.js';
@@ -13,7 +13,7 @@ import { ENV_PRESETS, ENV_IDS, LANDS, LAND_IDS } from '../render/environment.js'
 import * as Records from '../game/records.js';
 import { formatTime } from '../util/math.js';
 
-const SURF_LABEL = { road: 'Road', dirt: 'Dirt', ice: 'Ice' };
+const SURF_LABEL = { road: 'Road', dirt: 'Dirt', ice: 'Ice', grass: 'Grass' };
 // editor-only tabs after the block categories
 const SCENERY_TABS = [{ id: 'hangar', name: 'Hangar' }, { id: 'decor', name: 'Decor' }];
 const TABS = [...CATEGORIES, ...SCENERY_TABS];
@@ -196,7 +196,7 @@ export class Editor {
       this.decor.push(d);
       return d;
     }
-    if (!BLOCKS[data.type]) return null;
+    if (!ensureBlock(data.type)) return null;
     const b = { ...data };
     b.mesh = buildBlockMesh(b.type, b.surf, this.app.materials, b.edge);
     b.mesh.position.set(b.x * CELL, b.y * LEVEL, b.z * CELL);

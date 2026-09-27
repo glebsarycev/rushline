@@ -3,7 +3,7 @@
 // blocks throw, which keeps hand-made tracks honest.
 
 import { CELL, LEVEL, HALF } from '../config.js';
-import { BLOCKS, rotXZ, worldCells, DIRS, exitPort } from './blocks.js';
+import { BLOCKS, rotXZ, worldCells, DIRS, exitPort, ensureBlock, sweepId } from './blocks.js';
 
 const CURVES = [null, 'curve1', 'curve2', 'curve3', 'curve4'];
 const HILLS = { '1,1': 'hill1', '2,1': 'hill2', '3,1': 'hill3', '2,2': 'hill22', '3,2': 'hill32', '4,2': 'hill42', '5,2': 'hill52', '6,3': 'hill63' };
@@ -23,7 +23,13 @@ export class TrackBuilder {
     this.branching = false;
     this.marks = {};
     this.last = null;     // last block on the line, with the heading it was entered at
+    this.bank = 0;        // bank (degrees) and grade (%) at the open end, see sweep()
+    this.grade = 0;
+    this.profile = 'road'; // cross-section of sweep pieces: road, tech, deck, platform
   }
+
+  // cross-section of the sweep pieces placed from now on
+  prof(p) { this.profile = p; return this; }
 
   // side walls of the road blocks placed from now on: 'wall' or 'open'
   edges(mode) { this.edgeMode = mode; return this; }
@@ -47,10 +53,13 @@ export class TrackBuilder {
 
   // `exit` picks a side port of a four-way block (platform turns)
   place(type, entry = 0, exit = null) {
-    const def = BLOCKS[type];
+    const def = ensureBlock(type);
     if (!def) throw new Error('unknown block ' + type);
     if (this.open) throw new Error(`cannot attach ${type}: previous block ends in the air (use jump)`);
     const P = def.ports[entry];
+    if ((P.bank || 0) !== this.bank || (P.grade || 0) !== this.grade) {
+      throw new Error(`${type} at block ${this.blocks.length} starts at bank ${P.bank || 0}, grade ${P.grade || 0}; the road ends at bank ${this.bank}, grade ${this.grade}`);
+    }
     const rot = (((this.dir + 2 - P.d) % 4) + 4) % 4;
     const [lx, lz] = rotXZ(P.p[0], P.p[2], rot);
     const ox = this.pos[0] - lx, oy = this.pos[1] - P.p[1], oz = this.pos[2] - lz;
@@ -67,8 +76,19 @@ export class TrackBuilder {
     this.pos = [bx * CELL + ex, by * LEVEL + E.p[1], bz * CELL + ez];
     this.dir = (E.d + rot) & 3;
     this.open = !!E.open;
+    this.bank = E.bank || 0;
+    this.grade = E.grade || 0;
     return this;
   }
+
+  // Parametric piece (sweep blocks in blocks.js) that starts where the road ends:
+  // shape 's2' straight, 'r3' / 'l3' quarter turn; rise in levels; bank (degrees,
+  // positive = right side down) and grade (%) at its end default to the current ones.
+  sweep(shape, { rise = 0, bank = this.bank, grade = this.grade, profile = this.profile } = {}) {
+    return this.place(sweepId(profile, shape, rise, this.bank, bank, this.grade, grade));
+  }
+  // bring bank and grade back to zero over `n` cells (ordinary blocks need a flat end)
+  level(n = 1, rise = 0) { return this.sweep('s' + n, { rise, bank: 0, grade: 0 }); }
 
   // occupancy-checked insert; off-line blocks go to `extra` (after the finish in
   // build order, so the driving line through plazas stays the built one)
@@ -77,13 +97,13 @@ export class TrackBuilder {
   _put(type, bx, by, bz, rot, offLine = false, skip = false) {
     const cells = worldCells({ type, x: bx, y: by, z: bz, rot });
     const n = this.blocks.length + this.extra.length;
-    const plazaCell = BLOCKS[type].profile === 'platform' && cells.length === 1;
+    const plazaCell = ensureBlock(type).profile === 'platform' && cells.length === 1;
     for (const c of cells) {
       const k = c.join(',');
       const o = this.occ.get(k);
       if (!o) continue;
       if (skip) return false;
-      const takeOver = plazaCell && !offLine && o.offLine && BLOCKS[o.entry[0]].profile === 'platform';
+      const takeOver = plazaCell && !offLine && o.offLine && ensureBlock(o.entry[0]).profile === 'platform';
       if (!takeOver) throw new Error(`overlap: ${type}#${n} at cell ${k} with ${o.label}`);
     }
     for (const c of cells) {
@@ -91,7 +111,7 @@ export class TrackBuilder {
       if (o) this.extra.splice(this.extra.indexOf(o.entry), 1);
     }
     const e = [type, bx, by, bz, rot, this.variant];
-    if (this.edgeMode === 'open' && BLOCKS[type].profile === 'road') e.push('open');
+    if (this.edgeMode === 'open' && ensureBlock(type).profile === 'road') e.push('open');
     for (const c of cells) this.occ.set(c.join(','), { label: `${type}#${n}`, entry: e, offLine });
     (offLine ? this.extra : this.blocks).push(e);
     return true;
@@ -99,7 +119,7 @@ export class TrackBuilder {
 
   _isPlaza(x, y, z) {
     const o = this.occ.get(`${x},${y},${z}`);
-    return !!o && BLOCKS[o.entry[0]].profile === 'platform';
+    return !!o && ensureBlock(o.entry[0]).profile === 'platform';
   }
 
   repeat(n, fn) { for (let i = 0; i < n; i++) fn(this, i); return this; }
@@ -134,7 +154,7 @@ export class TrackBuilder {
   // ---- forks: remember an open end, build an alternative way from it later ---------------
   // mark the current open end, or the side of the last plaza cell ('L' / 'R')
   mark(name, side = null) {
-    if (!side) { this.marks[name] = { pos: this.pos.slice(), dir: this.dir, open: this.open }; return this; }
+    if (!side) { this.marks[name] = { pos: this.pos.slice(), dir: this.dir, open: this.open, bank: this.bank, grade: this.grade }; return this; }
     const L = this.last;
     const d = side === 'R' ? (L.dirIn + 1) & 3 : (L.dirIn + 3) & 3;
     const [dx, dz] = DIRS[d];
@@ -149,12 +169,12 @@ export class TrackBuilder {
   branch(name, fn) {
     const m = this.marks[name];
     if (!m) throw new Error('branch: no mark ' + name);
-    const saved = { pos: this.pos, dir: this.dir, open: this.open, last: this.last, edge: this.edgeMode, variant: this.variant };
-    this.pos = m.pos.slice(); this.dir = m.dir; this.open = m.open;
+    const saved = { pos: this.pos, dir: this.dir, open: this.open, last: this.last, edge: this.edgeMode, variant: this.variant, bank: this.bank, grade: this.grade };
+    this.pos = m.pos.slice(); this.dir = m.dir; this.open = m.open; this.bank = m.bank || 0; this.grade = m.grade || 0;
     this.branching = true;
     fn(this);
     this.branching = false;
-    Object.assign(this, { pos: saved.pos, dir: saved.dir, open: saved.open, last: saved.last, edgeMode: saved.edge, variant: saved.variant });
+    Object.assign(this, { pos: saved.pos, dir: saved.dir, open: saved.open, last: saved.last, edgeMode: saved.edge, variant: saved.variant, bank: saved.bank, grade: saved.grade });
     return this;
   }
 

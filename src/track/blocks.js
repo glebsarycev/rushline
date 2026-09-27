@@ -4,7 +4,7 @@
 //  - `frames` is the road centreline, swept later into road geometry
 // Headings: 0 = north (-Z), 1 = east (+X), 2 = south (+Z), 3 = west (-X)
 
-import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, WALL_T, WALL_H, LOOP_R, PIPE } from '../config.js';
+import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, WALL_T, WALL_H, LOOP_R, PIPE, TECH, DECK } from '../config.js';
 
 // ---- tiny vector helpers on [x, y, z] arrays ---------------------------------
 export const vadd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -155,21 +155,29 @@ function P(x, y, z, d, extra = {}) {
 
 const SOUTH_IN = () => P(0, 0, HALF, 2);
 
-function def(id, spec) {
+function def(id, spec, listed = true) {
   const b = { id, profile: 'road', feature: null, cat: 'road', surfaces: true, ...spec };
   b.frames = withArcLength(spec.path());
   b.length = b.frames[b.frames.length - 1].s;
   b.cells = computeCells(b);
   BLOCKS[id] = b;
-  BLOCK_LIST.push(b);
+  if (listed) BLOCK_LIST.push(b);
   return b;
 }
+
+// half width and height of each cross-section, for cell occupancy
+const EXTENT = {
+  platform: [HALF - 0.6, 0],
+  pipe: [PIPE.floor + PIPE.radius + PIPE.lip - 0.15, PIPE.wall * 0.95],
+  road: [ROAD_HALF + WALL_T - 0.15, WALL_H * 0.9],
+  tech: [ROAD_HALF + TECH.bump - 0.15, TECH.bumpH * 0.9],
+  deck: [DECK.half + DECK.lip - 0.15, DECK.lipH * 0.9],
+};
 
 // occupied cells, found by sampling the swept road volume
 function computeCells(b) {
   const set = new Map();
-  const halfW = b.profile === 'platform' ? HALF - 0.6 : b.profile === 'pipe' ? PIPE.floor + PIPE.radius + PIPE.lip - 0.15 : ROAD_HALF + WALL_T - 0.15;
-  const tall = b.profile === 'pipe' ? PIPE.wall * 0.95 : WALL_H * 0.9;
+  const [halfW, tall] = EXTENT[b.profile] || EXTENT.road;
   const fr = b.frames;
   const add = (pt) => {
     const cx = Math.floor((pt[0] + HALF) / CELL);
@@ -249,6 +257,86 @@ def('finishPad', { name: 'Plaza Finish', cat: 'platform', profile: 'platform', f
 def('pipe', { name: 'Half-Pipe', cat: 'pipe', profile: 'pipe', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0)] });
 def('pipe2', { name: 'Half-Pipe Curve', cat: 'pipe', profile: 'pipe', path: () => curvePath(2), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
 def('pipe3', { name: 'Half-Pipe Sweeper', cat: 'pipe', profile: 'pipe', path: () => curvePath(3), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
+
+// ---- parametric sweeps -------------------------------------------------------------
+// Blocks built from their id, so a track can turn, climb and bank in any combination
+// without a catalogue entry for each:
+//   sw.<profile>.<shape>.<rise>.<b0>.<b1>.<g0>.<g1>
+//   shape: s<n> straight n cells, r<n> / l<n> quarter turn right / left of size n
+//   rise: levels up (negative = down); b0, b1: bank in degrees at entry / exit
+//   (positive = right side down); g0, g1: grade in percent at entry / exit
+// Ports carry bank and grade so the builder can keep them continuous. They are
+// driven one way only (entered through port 0).
+const SW_RE = /^sw\.(road|tech|deck|platform)\.([slr])([1-9])\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)(?:\.([bBcf]))?$/;
+const SW_FEATURE = { b: 'boost', B: 'superboost', c: 'cp', f: 'finish' };
+
+function sweepPath(shape, n, rise, b0, b1, g0, g1) {
+  const R = (n - 0.5) * CELL;
+  const side = shape === 'l' ? -1 : 1;
+  const Lh = shape === 's' ? n * CELL : (R * Math.PI) / 2;
+  const D = rise * LEVEL, m0 = (g0 / 100) * Lh, m1 = (g1 / 100) * Lh;
+  const segs = Math.max(12, Math.ceil(Math.hypot(Lh, D) / 1.6));
+  const out = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs, t2 = t * t, t3 = t2 * t;
+    let x, z, dx, dz;
+    if (shape === 's') { x = 0; z = HALF - Lh * t; dx = 0; dz = -Lh; } else {
+      const a = (t * Math.PI) / 2;
+      x = side * (R - R * Math.cos(a)); z = HALF - R * Math.sin(a);
+      dx = side * R * Math.sin(a) * Math.PI / 2; dz = -R * Math.cos(a) * Math.PI / 2;
+    }
+    // cubic Hermite height: the grades at both ends match the neighbouring pieces
+    const y = (t3 - 2 * t2 + t) * m0 + (3 * t2 - 2 * t3) * D + (t3 - t2) * m1;
+    const dy = (3 * t2 - 4 * t + 1) * m0 + (6 * t - 6 * t2) * D + (3 * t2 - 2 * t) * m1;
+    let fr = frameUp([x, ROAD_Y + y, z], [dx, dy, dz]);
+    const b = ((b0 + (b1 - b0) * t2 * (3 - 2 * t)) * Math.PI) / 180;
+    if (b) fr = bankFrame(fr, b);
+    out.push(fr);
+  }
+  return out;
+}
+
+// feature: optional 'b' turbo, 'B' super turbo, 'c' checkpoint, 'f' finish (placed mid-piece)
+export function sweepId(profile, shape, rise, b0, b1, g0, g1, feature = '') {
+  return `sw.${profile}.${shape}.${rise}.${b0}.${b1}.${g0}.${g1}` + (feature ? '.' + feature : '');
+}
+
+// the block for `id`, creating a parametric sweep on first use
+export function ensureBlock(id) {
+  if (BLOCKS[id]) return BLOCKS[id];
+  const m = SW_RE.exec(id);
+  if (!m) return null;
+  const [, profile, shape, ns, ...rest] = m;
+  const n = +ns;
+  const [rise, b0, b1, g0, g1] = rest.slice(0, 5).map(Number);
+  const feature = SW_FEATURE[rest[5]] || null;
+  if (Math.abs(b0) > 80 || Math.abs(b1) > 80 || Math.abs(rise) > 12) return null;
+  const D = rise * LEVEL;
+  const side = shape === 'l' ? -1 : 1;
+  const exit = shape === 's'
+    ? P(0, D, HALF - n * CELL, 0, { bank: b1, grade: g1 })
+    : P(side * ((n - 1) * CELL + HALF), D, -(n - 1) * CELL, side > 0 ? 1 : 3, { bank: b1, grade: g1 });
+  const name = `${shape === 's' ? 'Straight' : shape === 'r' ? 'Right' : 'Left'} ${n}` + (rise ? ` ${rise > 0 ? '+' : ''}${rise}` : '') + (b0 || b1 ? ` bank ${b0}>${b1}` : '');
+  const b = def(id, {
+    name, cat: 'sweep', profile, feature, oneWay: true, sweep: { shape, n, rise, b0, b1, g0, g1 },
+    path: () => sweepPath(shape, n, rise, b0, b1, g0, g1),
+    ports: [P(0, 0, HALF, 2, { bank: b0, grade: g0 }), exit],
+  }, false);
+  // features sit on the frame halfway along the piece
+  if (feature) b.featureFrame = frameAt(b.frames, b.length / 2);
+  return b;
+}
+
+// frame at arc length s (linear between samples)
+export function frameAt(frames, s) {
+  let i = 0;
+  while (i < frames.length - 2 && frames[i + 1].s < s) i++;
+  const a = frames[i], c = frames[i + 1];
+  const t = Math.min(1, Math.max(0, (s - a.s) / Math.max(1e-6, c.s - a.s)));
+  const f = vnorm(vlerp(a.f, c.f, t)), u0 = vnorm(vlerp(a.u, c.u, t));
+  const r = vnorm(vcross(f, u0));
+  return { p: vlerp(a.p, c.p, t), f, r, u: vcross(r, f), s };
+}
 
 export const CATEGORIES = [
   { id: 'road', name: 'Road' },

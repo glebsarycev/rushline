@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { blockGeometry } from '../track/geometry.js';
 import { blockXform } from '../track/track.js';
 
-const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'curb', 'under', 'panelCP', 'panelStart', 'panelFinish',
+const NO_CAST = new Set(['lineCP', 'lineStart', 'checker', 'boostPad', 'superPad', 'surface_road', 'surface_dirt', 'surface_ice', 'surface_platform', 'surface_grass', 'curb', 'deckEdge', 'bump', 'under', 'panelCP', 'panelStart', 'panelFinish',
   'hangarFloor', 'skylight', 'glassOut', 'sign', 'lamp', 'lampCool', 'stripOrange', 'beacon', 'screen']);
 
 function append(acc, mats, b) {

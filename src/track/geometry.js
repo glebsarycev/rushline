@@ -2,9 +2,9 @@
 // Everything here is plain arrays so it also runs in Node for tests.
 
 import {
-  HALF, ROAD_Y, ROAD_HALF, CURB_W, WALL_T, WALL_H, SLAB, SURF, VARIANT_SURF, PIPE,
+  HALF, ROAD_Y, ROAD_HALF, CURB_W, WALL_T, WALL_H, SLAB, SURF, VARIANT_SURF, PIPE, TECH, DECK,
 } from '../config.js';
-import { BLOCKS, vadd, vsub, vscale, vlen, vcross, vdot } from './blocks.js';
+import { ensureBlock, vadd, vsub, vscale, vlen, vcross, vdot } from './blocks.js';
 
 const RH = ROAD_HALF, C = CURB_W, WT = WALL_T, WH = WALL_H, SL = SLAB;
 
@@ -44,7 +44,28 @@ function pipeProfile() {
   return segs;
 }
 
+// Low rounded border beside a surface of half width `w`: half a sine bump `bw` wide and
+// `bh` high, then the outer face down to the underside. Wheels can climb it, and the
+// slope pushes a car that runs wide back onto the road.
+function bumpEdges(w, bw, bh, mat) {
+  const segs = [];
+  const n = 6;
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n;
+      const u0 = w + bw * t0, u1 = w + bw * t1;
+      const v0 = bh * Math.sin(Math.PI * t0), v1 = bh * Math.sin(Math.PI * t1);
+      const du = u1 - u0, dv = v1 - v0, l = Math.hypot(du, dv);
+      segs.push([side * u0, v0, side * u1, v1, -side * dv / l, du / l, mat, 'wall']);
+    }
+    segs.push([side * (w + bw), -SL, side * (w + bw), 0, side, 0, 'side', 'wall']);
+  }
+  segs.push([-(w + bw), -SL, w + bw, -SL, 0, -1, 'under', 'wall']);
+  return segs;
+}
+
 // Cross-section segments: [u0, v0, u1, v1, normalU, normalV, material, collision]
+const DH = DECK.half;
 const PROFILES = {
   road: [
     [-RH + C, 0, RH - C, 0, 0, 1, 'surface', 'surface'],
@@ -68,6 +89,20 @@ const PROFILES = {
     [-RH, -SL, RH, -SL, 0, -1, 'under', 'wall'],
   ],
   pipe: pipeProfile(),
+  // tech road: road width, painted curbs, rounded borders instead of walls
+  tech: [
+    [-RH + C, 0, RH - C, 0, 0, 1, 'surface', 'surface'],
+    [-RH, 0, -RH + C, 0, 0, 1, 'curb', 'surface'],
+    [RH - C, 0, RH, 0, 0, 1, 'curb', 'surface'],
+    ...bumpEdges(RH, TECH.bump, TECH.bumpH, 'bump'),
+  ],
+  // deck: a wide open road (speed tech) with a painted edge line and a low lip
+  deck: [
+    [-DH + C, 0, DH - C, 0, 0, 1, 'surface', 'surface'],
+    [-DH, 0, -DH + C, 0, 0, 1, 'deckEdge', 'surface'],
+    [DH - C, 0, DH, 0, 0, 1, 'deckEdge', 'surface'],
+    ...bumpEdges(DH, DECK.lip, DECK.lipH, 'lip'),
+  ],
   platform: [
     [-HALF, 0, HALF, 0, 0, 1, 'surface', 'surface'],
     [-HALF, -SL, -HALF, 0, -1, 0, 'side', 'wall'],
@@ -82,30 +117,40 @@ const CAPS = {
   roadOpen: [[-RH, -SL, RH, 0]],
   pipe: [[-RH - PIPE.radius - PIPE.lip, -SL, RH + PIPE.radius + PIPE.lip, 0], [-RH - PIPE.radius - PIPE.lip, 0, -RH - PIPE.radius, PIPE.radius + PIPE.rise], [RH + PIPE.radius, 0, RH + PIPE.radius + PIPE.lip, PIPE.radius + PIPE.rise]],
   platform: [[-HALF, -SL, HALF, 0]],
+  tech: [[-RH - TECH.bump, -SL, RH + TECH.bump, 0]],
+  deck: [[-DH - DECK.lip, -SL, DH + DECK.lip, 0]],
 };
 
 // texture tile length along the road, per material
 const TILE = {
-  surface_road: 16, surface_dirt: 16, surface_ice: 16, surface_platform: 8,
-  curb: 4, wall: 12, wallTop: 12, side: 8, under: 8,
+  surface_road: 16, surface_dirt: 16, surface_ice: 16, surface_grass: 16, surface_platform: 8,
+  curb: 4, wall: 12, wallTop: 12, side: 8, under: 8, bump: 4, lip: 4, deckEdge: 6,
 };
+
+// half width of the drivable surface for each cross-section
+const SURF_HALF = { road: RH, roadOpen: RH, tech: RH, pipe: RH, deck: DH, platform: HALF };
 
 function matFor(seg, variant, profile) {
   const m = seg[6];
   if (m === 'surface') return profile === 'platform' && variant === 'road' ? 'surface_platform' : 'surface_' + variant;
-  if (m === 'curb') return variant === 'road' ? 'curb' : 'surface_' + variant;
+  if (m === 'curb' || m === 'deckEdge') return variant === 'road' ? m : 'surface_' + variant;
   return m;
 }
 
 // U texture coordinate (across the road) for a cross-section point
 function acrossU(mat, u, v, profile) {
   if (profile === 'pipe' && mat.startsWith('surface_')) return (Math.abs(u) + v) / (2 * RH) * Math.sign(u || 1);
+  const W = SURF_HALF[profile] ?? RH;
   switch (mat) {
-    case 'surface_road': return (u + RH - C) / (2 * (RH - C));
+    case 'surface_road': return (u + W - C) / (2 * (W - C));
     case 'surface_dirt':
-    case 'surface_ice': return profile === 'platform' ? (u + HALF) / (2 * HALF) : (u + RH) / (2 * RH);
+    case 'surface_ice':
+    case 'surface_grass': return (u + W) / (2 * W);
     case 'surface_platform': return u / 8;
-    case 'curb': return (Math.abs(u) - (RH - C)) / C;
+    case 'curb':
+    case 'deckEdge': return (Math.abs(u) - (W - C)) / C;
+    case 'bump':
+    case 'lip': return (Math.abs(u) - W) / (profile === 'deck' ? DECK.lip : TECH.bump);
     case 'wall': return v / WH;
     case 'wallTop': return (Math.abs(u) - RH) / WT;
     case 'side': return (v + SL) / (WH + SL);
@@ -238,9 +283,9 @@ export function cap(buf, fr, profileName, dir, collide = true) {
 // ---- block features (gates, pads) ------------------------------------------------
 const GATE_STYLE = { cp: 'CP', start: 'Start', finish: 'Finish' };
 
-function gate(buf, kind, z) {
+function gate(buf, kind, z, half = RH + WT) {
   const style = GATE_STYLE[kind];
-  const postX = RH + WT + 1.0;
+  const postX = half + 1.0;
   const top = ROAD_Y + 8.4;
   const base = ROAD_Y - SL;
   const h = top - base;
@@ -259,16 +304,16 @@ function gate(buf, kind, z) {
   buf.flat('glow' + style, [-gx, gy0, z + 0.4], [-gx, gy0, z - 0.4], [-gx, gy1, z - 0.4], [-gx, gy1, z + 0.4], [1, 0, 0]);
   buf.flat('glow' + style, [gx, gy0, z - 0.4], [gx, gy0, z + 0.4], [gx, gy1, z + 0.4], [gx, gy1, z - 0.4], [-1, 0, 0]);
   // line painted across the road
-  const y = ROAD_Y + 0.025;
+  const y = ROAD_Y + 0.025, lw = half - WT;
   if (kind === 'finish') {
-    buf.flat('checker', [-RH, y, z + 1.6], [RH, y, z + 1.6], [RH, y, z - 1.6], [-RH, y, z - 1.6], [0, 1, 0], [0, 0], [10, 1.6]);
+    buf.flat('checker', [-lw, y, z + 1.6], [lw, y, z + 1.6], [lw, y, z - 1.6], [-lw, y, z - 1.6], [0, 1, 0], [0, 0], [lw / 2, 1.6]);
   } else {
-    buf.flat('line' + style, [-RH, y, z + 0.35], [RH, y, z + 0.35], [RH, y, z - 0.35], [-RH, y, z - 0.35], [0, 1, 0], [0, 0], [1, 1]);
+    buf.flat('line' + style, [-lw, y, z + 0.35], [lw, y, z + 0.35], [lw, y, z - 0.35], [-lw, y, z - 0.35], [0, 1, 0], [0, 0], [1, 1]);
   }
 }
 
-function pad(buf, key) {
-  const w = RH - C, y = ROAD_Y + 0.02;
+function pad(buf, key, w = RH - C) {
+  const y = ROAD_Y + 0.02;
   buf.flat(key, [-w, y, 9], [w, y, 9], [w, y, -9], [-w, y, -9], [0, 1, 0], [0, 0], [1, 3]);
 }
 
@@ -287,7 +332,43 @@ function padGate(buf, kind) {
   else buf.flat('line' + style, [-HALF, y, 0.35], [HALF, y, 0.35], [HALF, y, -0.35], [-HALF, y, -0.35], [0, 1, 0], [0, 0], [1, 1]);
 }
 
+// half width to the outside of the road edge, per cross-section (gate posts stand beyond it)
+const EDGE_HALF = { road: RH + WT, roadOpen: RH + WT, tech: RH + TECH.bump, deck: DH + DECK.lip, pipe: RH + PIPE.radius + PIPE.lip, platform: HALF };
+
+// copy `src` into `dst` placed on frame `fr` (src coords: x right, y up from the level
+// floor, z backwards along the road)
+function placeOnFrame(dst, src, fr) {
+  const o = vsub(fr.p, vscale(fr.u, ROAD_Y));
+  const tp = (x, y, z) => [o[0] + fr.r[0] * x + fr.u[0] * y - fr.f[0] * z, o[1] + fr.r[1] * x + fr.u[1] * y - fr.f[1] * z, o[2] + fr.r[2] * x + fr.u[2] * y - fr.f[2] * z];
+  const tn = (x, y, z) => [fr.r[0] * x + fr.u[0] * y - fr.f[0] * z, fr.r[1] * x + fr.u[1] * y - fr.f[1] * z, fr.r[2] * x + fr.u[2] * y - fr.f[2] * z];
+  for (const key in src.mats) {
+    const m = src.mats[key], d = dst.mat(key);
+    for (let i = 0; i < m.pos.length; i += 3) {
+      d.pos.push(...tp(m.pos[i], m.pos[i + 1], m.pos[i + 2]));
+      d.nrm.push(...tn(m.nrm[i], m.nrm[i + 1], m.nrm[i + 2]));
+    }
+    for (const v of m.uv) d.uv.push(v);
+  }
+  const c = src.coll;
+  for (let i = 0; i < c.length; i += 19) {
+    for (let v = 0; v < 3; v++) dst.coll.push(...tp(c[i + v * 3], c[i + v * 3 + 1], c[i + v * 3 + 2]));
+    for (let v = 0; v < 3; v++) dst.coll.push(...tn(c[i + 9 + v * 3], c[i + 10 + v * 3], c[i + 11 + v * 3]));
+    dst.coll.push(c[i + 18]);
+  }
+}
+
 export function buildFeatures(buf, def) {
+  if (def.featureFrame) {
+    // sweep pieces: build the feature flat, then lay it onto the mid-piece frame
+    const tmp = new GeoBuffer();
+    const half = EDGE_HALF[def.profile] ?? RH + WT;
+    const W = (SURF_HALF[def.profile] ?? RH) - C;
+    if (def.feature === 'cp' || def.feature === 'finish') gate(tmp, def.feature, 0, half);
+    else if (def.feature === 'boost') pad(tmp, 'boostPad', W);
+    else if (def.feature === 'superboost') pad(tmp, 'superPad', W);
+    placeOnFrame(buf, tmp, def.featureFrame);
+    return;
+  }
   if (def.profile === 'platform' && (def.feature === 'cp' || def.feature === 'finish')) { padGate(buf, def.feature); return; }
   switch (def.feature) {
     case 'cp': gate(buf, 'cp', 0); break;
@@ -299,8 +380,16 @@ export function buildFeatures(buf, def) {
   }
 }
 
-// Feature placement data in local block coords
+// Feature placement data in local block coords (sweep pieces: `frame` is the mid-piece
+// frame the feature sits on)
 export function featureInfo(def) {
+  if (def.featureFrame) {
+    const frame = def.featureFrame;
+    const half = EDGE_HALF[def.profile] ?? RH + WT;
+    const W = (SURF_HALF[def.profile] ?? RH) - C;
+    if (def.feature === 'boost' || def.feature === 'superboost') return { type: 'boost', frame, halfLen: 9, halfWidth: W, strength: def.feature === 'boost' ? 1 : 2 };
+    return { type: def.feature, frame, halfWidth: half + 1.5 };
+  }
   switch (def.feature) {
     case 'start': return { type: 'start', spawn: [0, ROAD_Y, 7], gateZ: -6 };
     case 'cp': return { type: 'cp', gateZ: 0 };
@@ -320,7 +409,7 @@ export function blockProfile(def, edge = 'wall') {
 }
 
 export function blockGeometry(type, variant = 'road', edge = 'wall') {
-  const def = BLOCKS[type];
+  const def = ensureBlock(type);
   const v = def.profile === 'platform' || def.surfaces ? variant : 'road';
   const profile = blockProfile(def, edge);
   const key = type + '|' + v + '|' + profile;

@@ -158,6 +158,31 @@ export function curb() {
   return toTex(c);
 }
 
+// rounded tech-road border: white with a dark stripe band, canvas x = across (0 = road side)
+export function techBump() {
+  const W = 64, H = 256;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = '#eef0ee'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#2f9a55'; ctx.fillRect(W * 0.72, 0, W * 0.28, H);
+  ctx.fillStyle = 'rgba(20,24,28,0.85)';
+  for (let y = 0; y < H; y += 64) ctx.fillRect(W * 0.2, y, W * 0.3, 24);
+  const g = ctx.createLinearGradient(0, 0, W, 0);
+  g.addColorStop(0, 'rgba(0,0,0,0.2)'); g.addColorStop(0.5, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.25)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  speckle(ctx, W, H, rng(7), 700, ['#000', '#fff'], 1, 2, 0.08);
+  return toTex(c);
+}
+
+// painted edge line of a deck, canvas x = across (0 = inner side)
+export function deckEdge() {
+  const W = 64, H = 256;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = '#3a3f46'; ctx.fillRect(0, 0, W, H);
+  speckle(ctx, W, H, rng(9), 900, ['#2c3036', '#4a5058'], 1, 2, 0.5);
+  ctx.fillStyle = '#f2f2ee'; ctx.fillRect(W * 0.35, 0, W * 0.5, H);
+  return toTex(c);
+}
+
 // ---- walls / structures ------------------------------------------------------------
 // canvas x = across the wall height (0 = road level), canvas y = along the road
 export function wallFace() {
@@ -586,6 +611,8 @@ export function createTextures() {
     ice: ice(),
     platform: platformTiles(),
     curb: curb(),
+    techBump: techBump(),
+    deckEdge: deckEdge(),
     wall: wallFace(),
     wallGlow: wallGlowMask(),
     concrete: concrete(),

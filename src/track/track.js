@@ -2,7 +2,7 @@
 // features (spawn, checkpoints, finish, boosts), supports and collision.
 
 import { CELL, LEVEL, HALF, ROAD_Y, ROAD_HALF, SLAB } from '../config.js';
-import { BLOCKS, worldPort, worldCells, worldFrame, rotXZ, portKey, vlerp, vnorm } from './blocks.js';
+import { ensureBlock, worldPort, worldCells, worldFrame, rotXZ, portKey, vlerp, vnorm } from './blocks.js';
 import { blockGeometry, featureInfo, GeoBuffer } from './geometry.js';
 import { CollisionWorld } from '../physics/collision.js';
 import { computeRoute } from './route.js';
@@ -44,7 +44,7 @@ export function parseBlocks(list) {
   const out = [];
   for (let i = 0; i < list.length; i++) {
     const e = list[i];
-    const def = BLOCKS[e[0]];
+    const def = ensureBlock(e[0]);
     if (!def) continue;
     out.push({ i, type: e[0], x: e[1] | 0, y: e[2] | 0, z: e[3] | 0, rot: (e[4] | 0) & 3, surf: e[5] || 'road', edge: e[6] === 'open' ? 'open' : 'wall', def });
   }
@@ -139,6 +139,7 @@ export class Track {
     for (const b of this.blocks) {
       const info = featureInfo(b.def);
       if (!info) continue;
+      if (info.frame) { this._sweepFeature(b, info); continue; }
       const fwd = dirToWorld(b, 0, 0, -1);
       const right = dirToWorld(b, 1, 0, 0);
       if (info.type === 'start') {
@@ -163,9 +164,21 @@ export class Track {
         });
       }
     }
+    this.checkpoints.forEach((g, i) => { g.index = i; });
     this.checkpoints = mergeGates(this.checkpoints);
     this.checkpoints.forEach((g, i) => { g.index = i; });
     this.finishes = mergeGates(this.finishes);
+  }
+
+  // checkpoint / finish / turbo on a sweep piece: gate and pad follow its bank and grade
+  _sweepFeature(b, info) {
+    const fr = worldFrame(b, info.frame);
+    if (info.type === 'boost') {
+      this.boosts.push({ center: fr.p, fwd: fr.f, right: fr.r, up: fr.u, halfLen: info.halfLen, halfWidth: info.halfWidth, strength: info.strength, block: b });
+      return;
+    }
+    const g = { type: info.type, center: fr.p, fwd: fr.f, right: fr.r, up: fr.u, halfWidth: info.halfWidth, height: 10, block: b };
+    if (info.type === 'cp') this.checkpoints.push(g); else this.finishes.push(g);
   }
 
   // loops keep the car centred with a gentle assist (see Race._guide)
