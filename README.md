@@ -52,6 +52,15 @@ on the last checkpoint with the speed you had there.
   A track opens once the one before it is finished. `tests/campaign.mjs` checks each
   style and the 30-50 s range. Bronze, Silver, Gold and Author medals come from AI runs
   (`npm run medals`): Gold is the author time + 6%, Silver + 20%, Bronze + 50%.
+- **A world per track (themes):** Ultraviolet races through a violet stadium (purple
+  walls, glowing loops and pipes, giant rings in the air, hoops over the road, a
+  finish hall); Looking Glass is a mirror world without a stadium (wooden towers
+  inside the spirals, pillar islands with autumn trees, everything reflected upside
+  down in a mirror plane); Stillwater is a mountain valley (low-poly terrain, a river
+  and a waterfall under the jump, a rock cave over the finish, rocks and trees). The
+  trees and rocks are Higgsfield 3D models baked to one colour per face
+  (`tools/nature`). Trackmania-style arch gates and arrow signs before sharp corners,
+  U-turns and drops.
 - **Premium environment:** four times of day (morning, day, sunset, night) and
   four landscapes (mountains, city, sea, canyon) chosen per track; skies and
   landscapes are Higgsfield pictures, the stadium is a TM2020-style bowl with

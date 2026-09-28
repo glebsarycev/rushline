@@ -11,8 +11,12 @@ def load(name):
 
 def bake(name, faces_target):
     v, f, col = load(name)
-    red = max(0.0, 1.0 - faces_target / len(f))
-    v2, f2 = fast_simplification.simplify(v, f, red)
+    # weld the texture seams first, or the simplifier cannot collapse across them
+    w = trimesh.Trimesh(v, f, process=False)
+    w.merge_vertices(merge_tex=True, merge_norm=True)
+    wv, wf = np.asarray(w.vertices, np.float64), np.asarray(w.faces, np.int64)
+    red = max(0.0, 1.0 - faces_target / len(wf))
+    v2, f2 = fast_simplification.simplify(wv, wf, red)
     # colour of each new vertex: mean of the nearest original vertices
     tree = cKDTree(v)
     d, idx = tree.query(v2, k=6)

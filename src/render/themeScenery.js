@@ -74,11 +74,20 @@ export class ThemeScenery {
     const v = this.version;
     loadNature().then((data) => {
       if (v !== this.version) return;
+      // one instanced mesh per kind and 256 m square, so what is off screen (or outside
+      // the shadow camera) is culled
       for (const kind in byKind) {
-        if (!byKind[kind].length) continue;
-        const m = natureInstances(data, kind, byKind[kind]);
-        parent.add(m);
-        if (after) after(m);
+        const chunks = new Map();
+        for (const it of byKind[kind]) {
+          const k = Math.floor(it.x / 256) + ',' + Math.floor(it.z / 256);
+          if (!chunks.has(k)) chunks.set(k, []);
+          chunks.get(k).push(it);
+        }
+        for (const list of chunks.values()) {
+          const m = natureInstances(data, kind, list);
+          parent.add(m);
+          if (after) after(m);
+        }
       }
     }).catch((err) => console.warn('Nature models unavailable:', err && err.message ? err.message : err));
   }
