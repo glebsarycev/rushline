@@ -3,7 +3,7 @@
 // blocks throw, which keeps hand-made tracks honest.
 
 import { CELL, LEVEL, HALF } from '../config.js';
-import { BLOCKS, rotXZ, worldCells, DIRS, exitPort, ensureBlock, sweepId } from './blocks.js';
+import { BLOCKS, rotXZ, worldCells, DIRS, exitPort, ensureBlock, sweepId, curveLength } from './blocks.js';
 
 const CURVES = [null, 'curve1', 'curve2', 'curve3', 'curve4'];
 const HILLS = { '1,1': 'hill1', '2,1': 'hill2', '3,1': 'hill3', '2,2': 'hill22', '3,2': 'hill32', '4,2': 'hill42', '5,2': 'hill52', '6,3': 'hill63' };
@@ -103,7 +103,7 @@ export class TrackBuilder {
     const e = this.blocks[this.blocks.length - 1];
     if (!this.branching) {
       e.sw = { profile, shape, rise, b0: +e[0].split('.')[4], b1: bank, feature, smooth,
-        L: shape[0] === 's' ? n * CELL : ((n - 0.5) * CELL * Math.PI) / 2 };
+        L: shape[0] === 's' ? n * CELL : curveLength(n) };
     }
     return this;
   }

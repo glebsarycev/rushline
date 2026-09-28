@@ -70,18 +70,54 @@ function straightPath(len = 1) {
   ];
 }
 
+// Quarter turn with transition curves: the curvature ramps up from zero over the first
+// EASE_T of the arc and back down over the last EASE_T, so a car coming off a straight
+// is not handed the whole turn at once (steering and camera do not jerk at the
+// joint). Scaled so it starts and ends exactly where the circular arc of radius
+// (n - 0.5) cells did: the ports do not move. Tight curves (n = 1) stay circular.
+const EASE_T = 0.2;
+const EASE = (() => {
+  const N = 600;
+  const shape = (u) => Math.min(1, u / EASE_T, (1 - u) / EASE_T);
+  let area = 0;
+  for (let i = 0; i < N; i++) area += shape((i + 0.5) / N) / N;
+  const tab = [{ x: 0, y: 0, th: 0 }];
+  let x = 0, y = 0, th = 0;
+  for (let i = 0; i < N; i++) {
+    const dth = ((Math.PI / 2) * shape((i + 0.5) / N)) / area / N;
+    const thm = th + dth / 2;
+    x += Math.sin(thm) / N; y += Math.cos(thm) / N;
+    th += dth;
+    tab.push({ x, y, th });
+  }
+  return { tab, N, D: x }; // a unit-length turn ends at (D, D)
+})();
+
+export function curveLength(n) {
+  return n === 1 ? ((n - 0.5) * CELL * Math.PI) / 2 : ((n - 0.5) * CELL) / EASE.D;
+}
+
+// point u (0..1 along the arc) of a right quarter turn of size n, entered at the origin
+// heading +y: [x, y, heading]
+function turnAt(n, u) {
+  const R = (n - 0.5) * CELL;
+  if (n === 1) { const a = (u * Math.PI) / 2; return [R - R * Math.cos(a), R * Math.sin(a), a]; }
+  const S = R / EASE.D, f = u * EASE.N, i = Math.min(EASE.N - 1, Math.floor(f)), t = f - i;
+  const a = EASE.tab[i], b = EASE.tab[i + 1];
+  return [(a.x + (b.x - a.x) * t) * S, (a.y + (b.y - a.y) * t) * S, a.th + (b.th - a.th) * t];
+}
+
 // quarter turn to the right of radius (n - 0.5) cells; entering it from the
 // other port makes it a left turn
 // `plateau` holds the full bank through the middle of the curve (wall rides),
 // `lift` is how much of the half width the centreline is raised by at full bank
 function curvePath(n, bank = 0, plateau = 0, lift = 1) {
-  const R = (n - 0.5) * CELL;
-  const segs = Math.max(12, Math.ceil((R * Math.PI / 2) / (bank ? 1.6 : 2.2)));
+  const segs = Math.max(12, Math.ceil(curveLength(n) / (bank ? 1.6 : 2.2)));
   const out = [];
   for (let i = 0; i <= segs; i++) {
     const t = i / segs;
-    const a = t * Math.PI / 2;
-    let fr = frameUp([R - R * Math.cos(a), ROAD_Y, HALF - R * Math.sin(a)], [Math.sin(a), 0, -Math.cos(a)]);
+    const [tx, ty, a] = turnAt(n, t);
+    let fr = frameUp([tx, ROAD_Y, HALF - ty], [Math.sin(a), 0, -Math.cos(a)]);
     if (bank) {
       let k;
       if (plateau > 0) {
@@ -252,9 +288,9 @@ def('rampBig', { name: 'Big Kicker', cat: 'slope', path: () => rampPath(4.2), po
 // Stunts
 def('loop', { name: 'Loop Right', cat: 'stunt', guided: { lateral: 3, damp: 3.5, yaw: 6, stick: 6 }, path: () => loopPath(1), ports: [SOUTH_IN(), P(CELL, 0, -HALF - CELL, 0)] });
 def('loopL', { name: 'Loop Left', cat: 'stunt', guided: { lateral: 3, damp: 3.5, yaw: 6, stick: 6 }, path: () => loopPath(-1), ports: [SOUTH_IN(), P(-CELL, 0, -HALF - CELL, 0)] });
-def('bank2', { name: 'Banked Curve', cat: 'stunt', path: () => curvePath(2, 0.42, 0, 0), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
-def('bank3', { name: 'Banked Sweeper', cat: 'stunt', path: () => curvePath(3, 0.5, 0, 0), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
-def('wallride', { name: 'Wall Ride', cat: 'stunt', guided: { lateral: 1.6, damp: 2.4, yaw: 3, stick: 30, reach: 8, align: 5 }, path: () => curvePath(3, 1.05, 0.45, 0.45), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
+def('bank2', { name: 'Banked Curve', cat: 'stunt', path: () => curvePath(2), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
+def('bank3', { name: 'Banked Sweeper', cat: 'stunt', path: () => curvePath(3), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
+def('wallride', { name: 'Wall Ride', cat: 'stunt', guided: { lateral: 1.6, damp: 2.4, yaw: 3, stick: 30, reach: 8, align: 5 }, path: () => curvePath(3), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
 
 // Open platform (no walls, connects on all four sides)
 def('platform', {
@@ -268,10 +304,13 @@ def('platform', {
 def('cpPad', { name: 'Plaza Checkpoint', cat: 'platform', profile: 'platform', feature: 'cp', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0), P(HALF, 0, 0, 1), P(-HALF, 0, 0, 3)] });
 def('finishPad', { name: 'Plaza Finish', cat: 'platform', profile: 'platform', feature: 'finish', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0), P(HALF, 0, 0, 1), P(-HALF, 0, 0, 3)] });
 
-// Half-pipes: ride up the curved sides; above ~200 km/h the car holds on the walls
+// Half-pipes: ride up the curved sides; above ~200 km/h the car holds on the walls.
+// In the bends a soft guide keeps the car down in the pipe. (Banking the whole
+// section was tried: at 350 km/h it throws a car that rides the outer wall out.)
+const PIPE_GUIDE = { lateral: 1, damp: 1.6, yaw: 2, stick: 10, reach: 6, align: 3 };
 def('pipe', { name: 'Half-Pipe', cat: 'pipe', profile: 'pipe', path: () => straightPath(1), ports: [SOUTH_IN(), P(0, 0, -HALF, 0)] });
-def('pipe2', { name: 'Half-Pipe Curve', cat: 'pipe', profile: 'pipe', path: () => curvePath(2), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
-def('pipe3', { name: 'Half-Pipe Sweeper', cat: 'pipe', profile: 'pipe', path: () => curvePath(3), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
+def('pipe2', { name: 'Half-Pipe Curve', cat: 'pipe', profile: 'pipe', guided: PIPE_GUIDE, path: () => curvePath(2), ports: [SOUTH_IN(), P(CELL + HALF, 0, -CELL, 1)] });
+def('pipe3', { name: 'Half-Pipe Sweeper', cat: 'pipe', profile: 'pipe', guided: PIPE_GUIDE, path: () => curvePath(3), ports: [SOUTH_IN(), P(2 * CELL + HALF, 0, -2 * CELL, 1)] });
 
 // ---- parametric sweeps -------------------------------------------------------------
 // Blocks built from their id, so a track can turn, climb and bank in any combination
@@ -287,9 +326,8 @@ const SW_RE = /^sw\.(road|tech|deck|platform)\.([slr])([1-9])\.(-?\d+)\.(-?\d+)\
 const SW_FEATURE = { b: 'boost', B: 'superboost', c: 'cp', f: 'finish', s: 'start' };
 
 function sweepPath(shape, n, rise, b0, b1, g0, g1, peak = 0) {
-  const R = (n - 0.5) * CELL;
   const side = shape === 'l' ? -1 : 1;
-  const Lh = shape === 's' ? n * CELL : (R * Math.PI) / 2;
+  const Lh = shape === 's' ? n * CELL : curveLength(n);
   const D = rise * LEVEL, m0 = (g0 / 100) * Lh, m1 = (g1 / 100) * Lh;
   const segs = Math.max(12, Math.ceil(Math.hypot(Lh, D) / 1.6));
   const out = [];
@@ -297,9 +335,9 @@ function sweepPath(shape, n, rise, b0, b1, g0, g1, peak = 0) {
     const t = i / segs, t2 = t * t, t3 = t2 * t;
     let x, z, dx, dz;
     if (shape === 's') { x = 0; z = HALF - Lh * t; dx = 0; dz = -Lh; } else {
-      const a = (t * Math.PI) / 2;
-      x = side * (R - R * Math.cos(a)); z = HALF - R * Math.sin(a);
-      dx = side * R * Math.sin(a) * Math.PI / 2; dz = -R * Math.cos(a) * Math.PI / 2;
+      const [tx, ty, a] = turnAt(n, t);
+      x = side * tx; z = HALF - ty;
+      dx = side * Math.sin(a) * Lh; dz = -Math.cos(a) * Lh;
     }
     // cubic Hermite height: the grades at both ends match the neighbouring pieces
     const y = (t3 - 2 * t2 + t) * m0 + (3 * t2 - 2 * t3) * D + (t3 - t2) * m1;

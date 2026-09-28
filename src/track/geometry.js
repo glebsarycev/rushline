@@ -8,35 +8,42 @@ import { ensureBlock, vadd, vsub, vscale, vlen, vcross, vdot } from './blocks.js
 
 const RH = ROAD_HALF, C = CURB_W, WT = WALL_T, WH = WALL_H, SL = SLAB;
 
-// Half-pipe: the road's flat floor (so it joins road blocks without a step), quarter
-// circles up into short vertical walls, then the walls curl back inwards so a car
-// that climbs high is turned back down instead of flying out.
+// Half-pipe: a flat floor, quarter circles up into short vertical walls, then the walls
+// curl back inwards so a car that climbs high is turned back down instead of flying
+// out. Every segment carries the normals of its two ends (the circle's normal there),
+// so the curved faces shade and collide smoothly instead of as facets.
 function pipeProfile() {
-  const { floor: F, radius: R, rise: H, curl, lip: L } = PIPE;
+  const { floor: F, radius: R, rise: H, curlR: Rc, curl, lip: L } = PIPE;
   const top = (curl * Math.PI) / 180;
   const segs = [[-F, 0, F, 0, 0, 1, 'surface', 'surface']];
-  const n = 7, m = 9;
+  const n = 16, m = 16;
+  // segment with per-end normals
+  const arcSeg = (u0, v0, u1, v1, n0, n1, mat, coll) => {
+    const nu = n0[0] + n1[0], nv = n0[1] + n1[1], l = Math.hypot(nu, nv);
+    return [u0, v0, u1, v1, nu / l, nv / l, mat, coll, n0[0], n0[1], n1[0], n1[1]];
+  };
   for (const side of [-1, 1]) {
+    // bottom quarter circle around (F, R): normal points back to its centre
     for (let i = 0; i < n; i++) {
-      const a0 = (i / n) * Math.PI / 2, a1 = ((i + 1) / n) * Math.PI / 2, am = (a0 + a1) / 2;
-      // normal points back to the circle centre (into the pipe)
-      segs.push([side * (F + R * Math.sin(a0)), R - R * Math.cos(a0), side * (F + R * Math.sin(a1)), R - R * Math.cos(a1),
-        -side * Math.sin(am), Math.cos(am), 'surface', 'surface']);
+      const a0 = (i / n) * Math.PI / 2, a1 = ((i + 1) / n) * Math.PI / 2;
+      segs.push(arcSeg(side * (F + R * Math.sin(a0)), R - R * Math.cos(a0), side * (F + R * Math.sin(a1)), R - R * Math.cos(a1),
+        [-side * Math.sin(a0), Math.cos(a0)], [-side * Math.sin(a1), Math.cos(a1)], 'surface', 'surface'));
     }
     const uw = side * (F + R);
     segs.push([uw, R, uw, R + H, -side, 0, 'surface', 'surface']);
-    // the curl: arc around (F, R + H) from the wall inwards over the top
+    // the curl: arc around (F + R - Rc, R + H) from the wall inwards over the top
+    const cu = F + R - Rc;
     for (let i = 0; i < m; i++) {
-      const a0 = (i / m) * top, a1 = ((i + 1) / m) * top, am = (a0 + a1) / 2;
-      segs.push([side * (F + R * Math.cos(a0)), R + H + R * Math.sin(a0), side * (F + R * Math.cos(a1)), R + H + R * Math.sin(a1),
-        -side * Math.cos(am), -Math.sin(am), 'surface', 'surface']);
+      const a0 = (i / m) * top, a1 = ((i + 1) / m) * top;
+      segs.push(arcSeg(side * (cu + Rc * Math.cos(a0)), R + H + Rc * Math.sin(a0), side * (cu + Rc * Math.cos(a1)), R + H + Rc * Math.sin(a1),
+        [-side * Math.cos(a0), -Math.sin(a0)], [-side * Math.cos(a1), -Math.sin(a1)], 'surface', 'surface'));
       // outer shell of the curl
-      const Ro = R + L;
-      segs.push([side * (F + Ro * Math.cos(a0)), R + H + Ro * Math.sin(a0), side * (F + Ro * Math.cos(a1)), R + H + Ro * Math.sin(a1),
-        side * Math.cos(am), Math.sin(am), 'side', 'wall']);
+      const Ro = Rc + L;
+      segs.push(arcSeg(side * (cu + Ro * Math.cos(a0)), R + H + Ro * Math.sin(a0), side * (cu + Ro * Math.cos(a1)), R + H + Ro * Math.sin(a1),
+        [side * Math.cos(a0), Math.sin(a0)], [side * Math.cos(a1), Math.sin(a1)], 'side', 'wall'));
     }
     // rim where the curl ends, and the outer wall down to the deck
-    const ue = F + R * Math.cos(top), ve = R + H + R * Math.sin(top), uo = F + (R + L) * Math.cos(top), vo = R + H + (R + L) * Math.sin(top);
+    const ue = cu + Rc * Math.cos(top), ve = R + H + Rc * Math.sin(top), uo = cu + (Rc + L) * Math.cos(top), vo = R + H + (Rc + L) * Math.sin(top);
     segs.push([side * ue, ve, side * uo, vo, -side * Math.sin(top), Math.cos(top), 'wallTop', 'wall']);
     segs.push([uw + side * L, -SL, uw + side * L, R + H, side, 0, 'side', 'wall']);
   }
@@ -114,7 +121,7 @@ const PROFILES = {
 const CAPS = {
   road: [[-RH - WT, -SL, RH + WT, 0], [-RH - WT, 0, -RH, WH], [RH, 0, RH + WT, WH]],
   roadOpen: [[-RH, -SL, RH, 0]],
-  pipe: [[-RH - PIPE.radius - PIPE.lip, -SL, RH + PIPE.radius + PIPE.lip, 0], [-RH - PIPE.radius - PIPE.lip, 0, -RH - PIPE.radius, PIPE.radius + PIPE.rise], [RH + PIPE.radius, 0, RH + PIPE.radius + PIPE.lip, PIPE.radius + PIPE.rise]],
+  pipe: [[-PIPE.floor - PIPE.radius - PIPE.lip, -SL, PIPE.floor + PIPE.radius + PIPE.lip, 0], [-PIPE.floor - PIPE.radius - PIPE.lip, 0, -PIPE.floor - PIPE.radius, PIPE.radius + PIPE.rise], [PIPE.floor + PIPE.radius, 0, PIPE.floor + PIPE.radius + PIPE.lip, PIPE.radius + PIPE.rise]],
   platform: [[-HALF, -SL, HALF, 0]],
   tech: [[-RH - TECH.bump, -SL, RH + TECH.bump, 0]],
   deck: [[-DH - DECK.lip, -SL, DH + DECK.lip, 0]],
@@ -247,6 +254,8 @@ export function sweep(buf, frames, profileName, variant, collide = true) {
   const surfId = VARIANT_SURF[profileName === 'platform' && variant === 'road' ? 'platform' : variant] ?? VARIANT_SURF.road;
   for (const seg of profile) {
     const [u0, v0, u1, v1, nu, nv, , coll] = seg;
+    // optional normals at the two ends (smooth curved sections)
+    const [nu0, nv0, nu1, nv1] = seg.length > 8 ? seg.slice(8, 12) : [nu, nv, nu, nv];
     const key = matFor(seg, variant, profileName);
     const surf = !collide || !coll ? null : coll === 'surface' ? surfId : SURF.WALL;
     const um = (u0 + u1) / 2, vm = (v0 + v1) / 2;
@@ -263,9 +272,9 @@ export function sweep(buf, frames, profileName, variant, collide = true) {
     for (let i = 0; i < frames.length - 1; i++) {
       const f0 = frames[i], f1 = frames[i + 1];
       const a = pointOn(f0, u0, v0), b = pointOn(f0, u1, v1), c = pointOn(f1, u1, v1), d = pointOn(f1, u0, v0);
-      const n0 = normalOn(f0, nu, nv), n1 = normalOn(f1, nu, nv);
-      buf.quad(key, a, b, c, d, n0, n0, n1, n1,
-        [uA, vs[i]], [uB, vs[i]], [uB, vs[i + 1]], [uA, vs[i + 1]], surf, n0);
+      const na = normalOn(f0, nu0, nv0), nb = normalOn(f0, nu1, nv1), nc = normalOn(f1, nu1, nv1), nd = normalOn(f1, nu0, nv0);
+      buf.quad(key, a, b, c, d, na, nb, nc, nd,
+        [uA, vs[i]], [uB, vs[i]], [uB, vs[i + 1]], [uA, vs[i + 1]], surf, normalOn(f0, nu, nv));
     }
   }
 }
@@ -341,7 +350,7 @@ function padGate(buf, kind) {
 }
 
 // half width to the outside of the road edge, per cross-section (gate posts stand beyond it)
-const EDGE_HALF = { road: RH + WT, roadOpen: RH + WT, tech: RH + TECH.bump, deck: DH + DECK.lip, pipe: RH + PIPE.radius + PIPE.lip, platform: HALF };
+const EDGE_HALF = { road: RH + WT, roadOpen: RH + WT, tech: RH + TECH.bump, deck: DH + DECK.lip, pipe: PIPE.floor + PIPE.radius + PIPE.lip, platform: HALF };
 
 // copy `src` into `dst` placed on frame `fr` (src coords: x right, y up from the level
 // floor, z backwards along the road)

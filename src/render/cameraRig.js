@@ -11,6 +11,8 @@ const MODES = {
 };
 
 const _fwd = new THREE.Vector3(), _up = new THREE.Vector3(), _vd = new THREE.Vector3(), _t = new THREE.Vector3();
+const _upMix = new THREE.Vector3();
+const smooth = (x) => x * x * (3 - 2 * x);
 const _look = new THREE.Vector3(), _desired = new THREE.Vector3();
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -70,10 +72,17 @@ export class CameraRig {
         _t.lerp(_vd, 0.45).normalize();
       }
       const grounded = t.grounded > 0;
-      this.dir.lerp(_t, k(grounded ? 6.5 : 2.2)).normalize();
-      const upTarget = grounded || t.airTime < 0.4 ? _up : WORLD_UP;
-      this.up.lerp(upTarget, k(grounded ? 3.2 : 1.3)).normalize();
       const speedPull = clamp((t.speed - 20) / 90, 0, 1);
+      // follow the heading a little more softly at speed: no jerk where a turn begins
+      this.dir.lerp(_t, k(grounded ? 6.5 - 2 * speedPull : 2.2)).normalize();
+      // on walls and banks keep part of the real vertical so the horizon does not tip
+      // all the way; in a loop (car past ~110 degrees) the camera rolls with the car
+      let upTarget = WORLD_UP;
+      if (grounded || t.airTime < 0.4) {
+        const w = 0.35 * smooth(clamp((_up.y + 0.35) / 0.4, 0, 1));
+        upTarget = _upMix.copy(_up).multiplyScalar(1 - w).addScaledVector(WORLD_UP, w).normalize();
+      }
+      this.up.lerp(upTarget, k(grounded ? 3.2 : 1.3)).normalize();
       this.distBoost += ((t.boost ? 1.2 : 0) - this.distBoost) * k(3);
       const dist = M.dist + speedPull * 1.1 + this.distBoost;
       _desired.copy(t.pos).addScaledVector(this.dir, -dist).addScaledVector(this.up, M.height + speedPull * 0.2);

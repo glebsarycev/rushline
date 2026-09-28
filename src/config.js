@@ -11,9 +11,10 @@ export const WALL_T = 1.0;     // side wall thickness
 export const WALL_H = 1.2;     // side wall height above the road
 export const SLAB = 1.2;       // thickness of the road deck
 export const LOOP_R = 26;      // loop radius
-// half-pipe cross-section: road-width floor, quarter circles, vertical walls
-export const PIPE = { floor: 10, radius: 5.5, rise: 3.0, curl: 120, lip: 0.5 };
-PIPE.wall = PIPE.radius + PIPE.rise + PIPE.radius * Math.sin((PIPE.curl * Math.PI) / 180) + PIPE.lip; // total height
+// half-pipe cross-section: flat floor, quarter circles (radius) up into short vertical
+// walls, then a tighter curl (curlR) back inwards; floor + radius + lip = one cell half
+export const PIPE = { floor: 8.5, radius: 7, rise: 1.5, curlR: 5.5, curl: 120, lip: 0.5 };
+PIPE.wall = PIPE.radius + PIPE.rise + PIPE.curlR * Math.sin((PIPE.curl * Math.PI) / 180) + PIPE.lip; // total height
 // tech road: road width with low rounded borders instead of walls
 export const TECH = { bump: 1.4, bumpH: 1.2 };
 // deck: wide open road (speed tech), a low rounded lip marks the edge

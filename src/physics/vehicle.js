@@ -2,7 +2,7 @@
 // friction circle, bump-stop and hull contacts solved with sequential impulses.
 
 import * as THREE from 'three';
-import { SURFACES, GRAVITY } from '../config.js';
+import { SURFACES, SURF, GRAVITY } from '../config.js';
 import { clamp, approach } from '../util/math.js';
 
 export const CAR = {
@@ -398,8 +398,10 @@ export class Vehicle {
         c.p.set(wc.px, wc.py, wc.pz);
         c.n.set(wc.nx, wc.ny, wc.nz);
         c.depth = wc.depth;
-        // scraping a wall costs speed (as in TM); body contacts with the road stay slippery
-        c.kind = 2; c.wheel = -1; c.e = P.hullRestitution; c.mu = Math.abs(wc.ny) < 0.5 ? P.wallFriction : P.hullFriction; c.iscale = P.hullInvIScale; c.surf = wc.surf;
+        // scraping a wall costs speed (as in TM); body contacts with driving surfaces (the
+        // road, a half-pipe's curved sides) stay slippery
+        const wall = wc.surf === SURF.WALL && Math.abs(wc.ny) < 0.5;
+        c.kind = 2; c.wheel = -1; c.e = P.hullRestitution; c.mu = wall ? P.wallFriction : P.hullFriction; c.iscale = P.hullInvIScale; c.surf = wc.surf;
       }
     }
     this.nContacts = n;
@@ -458,7 +460,8 @@ export class Vehicle {
         const jt = Math.min(vt * mt, c.mu * c.jn);
         _J.copy(_n).multiplyScalar(-jt);
         this._impulse(_J, c.r, c.iscale);
-        if (vt > 4 && c.surf !== 4 && c.n.y < 0.7) {
+        // sparks only off walls and borders, not the road or a pipe side
+        if (vt > 4 && c.surf === SURF.WALL && c.n.y < 0.7) {
           if (vt > this.scrape) { this.scrape = vt; this.scrapePoint.copy(c.p); }
         }
       }

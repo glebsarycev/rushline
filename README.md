@@ -37,6 +37,13 @@ won't work. An internet connection is only used for the UI fonts.
 
 On phones and tablets touch buttons appear during races.
 
+**Turns and pipes:** curves ease in and out (transition curves: the curvature ramps up
+over the first fifth of a turn and down over the last), so steering and camera do not
+jerk where a turn begins. Half-pipes have a 7 m fillet, smooth normals and a soft guide
+in the bends; the body slides along a pipe side instead of scraping it like a wall. On
+walls and banks the camera keeps part of the real vertical; in loops it rolls with the
+car.
+
 **Handling:** the car grips hard (up to ~7 g at speed) and only slides when it is
 really driven past its grip; there is no brake drift. Downforce holds it on crests
 while track surface is right below it, so it stays on the road over hills at full
