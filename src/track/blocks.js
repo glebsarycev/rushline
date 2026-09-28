@@ -276,16 +276,17 @@ def('pipe3', { name: 'Half-Pipe Sweeper', cat: 'pipe', profile: 'pipe', path: ()
 // ---- parametric sweeps -------------------------------------------------------------
 // Blocks built from their id, so a track can turn, climb and bank in any combination
 // without a catalogue entry for each:
-//   sw.<profile>.<shape>.<rise>.<b0>.<b1>.<g0>.<g1>
+//   sw.<profile>.<shape>.<rise>.<b0>.<b1>.<g0>.<g1>[.p<peak>][.<feature>]
 //   shape: s<n> straight n cells, r<n> / l<n> quarter turn right / left of size n
 //   rise: levels up (negative = down); b0, b1: bank in degrees at entry / exit
-//   (positive = right side down); g0, g1: grade in percent at entry / exit
+//   (positive = right side down); g0, g1: grade in percent at entry / exit;
+//   peak: extra bank in the middle of the piece (a curve that tilts in and out)
 // Ports carry bank and grade so the builder can keep them continuous. They are
 // driven one way only (entered through port 0).
-const SW_RE = /^sw\.(road|tech|deck|platform)\.([slr])([1-9])\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)(?:\.([bBcfs]))?$/;
+const SW_RE = /^sw\.(road|tech|deck|platform)\.([slr])([1-9])\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)\.(-?\d+)(?:\.p(-?\d+))?(?:\.([bBcfs]))?$/;
 const SW_FEATURE = { b: 'boost', B: 'superboost', c: 'cp', f: 'finish', s: 'start' };
 
-function sweepPath(shape, n, rise, b0, b1, g0, g1) {
+function sweepPath(shape, n, rise, b0, b1, g0, g1, peak = 0) {
   const R = (n - 0.5) * CELL;
   const side = shape === 'l' ? -1 : 1;
   const Lh = shape === 's' ? n * CELL : (R * Math.PI) / 2;
@@ -304,7 +305,8 @@ function sweepPath(shape, n, rise, b0, b1, g0, g1) {
     const y = (t3 - 2 * t2 + t) * m0 + (3 * t2 - 2 * t3) * D + (t3 - t2) * m1;
     const dy = (3 * t2 - 4 * t + 1) * m0 + (6 * t - 6 * t2) * D + (3 * t2 - 2 * t) * m1;
     let fr = frameUp([x, ROAD_Y + y, z], [dx, dy, dz]);
-    const b = ((b0 + (b1 - b0) * t2 * (3 - 2 * t)) * Math.PI) / 180;
+    const sp = Math.sin(Math.PI * t);
+    const b = ((b0 + (b1 - b0) * t2 * (3 - 2 * t) + peak * sp * sp) * Math.PI) / 180;
     if (b) fr = bankFrame(fr, b);
     out.push(fr);
   }
@@ -313,8 +315,8 @@ function sweepPath(shape, n, rise, b0, b1, g0, g1) {
 
 // feature: optional 'b' turbo, 'B' super turbo, 'c' checkpoint, 'f' finish (placed mid-piece),
 // 's' start (flat straight pieces only)
-export function sweepId(profile, shape, rise, b0, b1, g0, g1, feature = '') {
-  return `sw.${profile}.${shape}.${rise}.${b0}.${b1}.${g0}.${g1}` + (feature ? '.' + feature : '');
+export function sweepId(profile, shape, rise, b0, b1, g0, g1, feature = '', peak = 0) {
+  return `sw.${profile}.${shape}.${rise}.${b0}.${b1}.${g0}.${g1}` + (peak ? '.p' + peak : '') + (feature ? '.' + feature : '');
 }
 
 // the block for `id`, creating a parametric sweep on first use
@@ -325,10 +327,11 @@ export function ensureBlock(id) {
   const [, profile, shape, ns, ...rest] = m;
   const n = +ns;
   const [rise, b0, b1, g0, g1] = rest.slice(0, 5).map(Number);
-  const feature = SW_FEATURE[rest[5]] || null;
-  if (Math.abs(b0) > 80 || Math.abs(b1) > 80 || Math.abs(rise) > 12) return null;
+  const peak = rest[5] ? +rest[5] : 0;
+  const feature = SW_FEATURE[rest[6]] || null;
+  if (Math.abs(b0) > 80 || Math.abs(b1) > 80 || Math.abs(rise) > 12 || Math.abs(peak) > 60) return null;
   // the start needs a flat, straight piece (the car spawns level)
-  if (feature === 'start' && (shape !== 's' || rise || b0 || b1 || g0 || g1)) return null;
+  if (feature === 'start' && (shape !== 's' || rise || b0 || b1 || g0 || g1 || peak)) return null;
   const D = rise * LEVEL;
   const side = shape === 'l' ? -1 : 1;
   const exit = shape === 's'
@@ -336,8 +339,8 @@ export function ensureBlock(id) {
     : P(side * ((n - 1) * CELL + HALF), D, -(n - 1) * CELL, side > 0 ? 1 : 3, { bank: b1, grade: g1 });
   const name = `${shape === 's' ? 'Straight' : shape === 'r' ? 'Right' : 'Left'} ${n}` + (rise ? ` ${rise > 0 ? '+' : ''}${rise}` : '') + (b0 || b1 ? ` bank ${b0}>${b1}` : '');
   const b = def(id, {
-    name, cat: 'sweep', profile, feature, oneWay: true, sweep: { shape, n, rise, b0, b1, g0, g1 },
-    path: () => sweepPath(shape, n, rise, b0, b1, g0, g1),
+    name, cat: 'sweep', profile, feature, oneWay: true, sweep: { shape, n, rise, b0, b1, g0, g1, peak },
+    path: () => sweepPath(shape, n, rise, b0, b1, g0, g1, peak),
     ports: [P(0, 0, HALF, 2, { bank: b0, grade: g0 }), exit],
   }, false);
   // features sit on the frame halfway along the piece; the start gate stands a little

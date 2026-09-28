@@ -26,7 +26,14 @@ export class TrackBuilder {
     this.bank = 0;        // bank (degrees) and grade (%) at the open end, see sweep()
     this.grade = 0;
     this.profile = 'road'; // cross-section of sweep pieces: road, tech, deck, platform
+    this.gradeMode = 'monotone'; // how sweep grades are chosen, see smoothing()
   }
+
+  // 'monotone' (default): each joint blends its neighbours' slopes without overshoot,
+  // flat where a climb turns into a fall; suits short tech pieces.
+  // 'spline': one clamped cubic spline over each run of pieces, continuous slope and
+  // curvature; for long fast pieces (no crest at any joint).
+  smoothing(mode) { this.gradeMode = mode; return this; }
 
   // cross-section of the sweep pieces placed from now on
   prof(p) { this.profile = p; return this; }
@@ -87,10 +94,11 @@ export class TrackBuilder {
   // feature: 'b' turbo, 'B' super turbo, 'c' checkpoint, 'f' finish, 's' start
   // grade: the end grade in %, or 'smooth' (default): chosen at build() from the rises of
   // the neighbouring pieces so a run of sweeps climbs and falls without kinks
-  sweep(shape, { rise = 0, bank = this.bank, grade = 'smooth', profile = this.profile, feature = '' } = {}) {
+  // peak: extra bank in the middle of the piece, so a curve tilts in and out by itself
+  sweep(shape, { rise = 0, bank = this.bank, grade = 'smooth', profile = this.profile, feature = '', peak = 0 } = {}) {
     const smooth = grade === 'smooth';
     const g1 = smooth ? 0 : grade;
-    this.place(sweepId(profile, shape, rise, this.bank, bank, this.grade, g1, feature));
+    this.place(sweepId(profile, shape, rise, this.bank, bank, this.grade, g1, feature, peak));
     const n = +shape.slice(1);
     const e = this.blocks[this.blocks.length - 1];
     if (!this.branching) {
@@ -100,15 +108,29 @@ export class TrackBuilder {
     return this;
   }
 
-  // Grades at the joints of consecutive sweep pieces: the slopes of the two neighbours
-  // blended without overshoot (monotone cubic), 0 where a climb turns into a fall or the
-  // run meets an ordinary block.
+  // Grades at the joints of consecutive sweep pieces: the height along a run of pieces
+  // is one clamped cubic spline through the joint heights (continuous slope and
+  // curvature, so no crest or dip at a joint). A run ends at an ordinary block (flat)
+  // or at a piece with an explicit grade, which then fixes the slope there.
   _smoothGrades() {
+    if (this.gradeMode === 'spline') this._splineGrades(); else this._monotoneGrades();
+    // the new grades reshape the pieces slightly: check they still fit
+    const occ = new Map();
+    for (const e of this.blocks.concat(this.extra)) {
+      for (const c of worldCells({ type: e[0], x: e[1], y: e[2], z: e[3], rot: e[4] })) {
+        const k = c.join(',');
+        if (occ.has(k) && occ.get(k) !== e) throw new Error(`overlap after smoothing grades: ${e[0]} at cell ${k}`);
+        occ.set(k, e);
+      }
+    }
+  }
+
+  _monotoneGrades() {
     const B = this.blocks;
     for (let i = 0; i < B.length; i++) {
       const e = B[i];
-      if (!e.sw) continue;
-      const prev = i > 0 && B[i - 1].sw ? B[i - 1] : null;
+      if (!e.sw || e.sw.feature === 's') continue;
+      const prev = i > 0 && B[i - 1].sw && B[i - 1].sw.feature !== 's' ? B[i - 1] : null;
       const next = i < B.length - 1 && B[i + 1].sw ? B[i + 1] : null;
       const m = (x) => (x.sw.rise * LEVEL) / x.sw.L;
       const joint = (a, b) => {
@@ -118,20 +140,51 @@ export class TrackBuilder {
         return Math.round((100 * 2 * ma * mb) / (ma + mb));
       };
       const parts = e[0].split('.');
-      // id fields: sw.profile.shape.rise.b0.b1.g0.g1[.feature]
+      // id fields: sw.profile.shape.rise.b0.b1.g0.g1[...]
       const g0 = prev ? (prev.sw.smooth ? joint(prev, e) : +prev[0].split('.')[7]) : +parts[6];
       const g1 = e.sw.smooth ? joint(e, next) : +parts[7];
       parts[6] = String(g0); parts[7] = String(g1);
       e[0] = parts.join('.');
     }
-    // the new grades reshape the pieces slightly: check they still fit
-    const occ = new Map();
-    for (const e of B.concat(this.extra)) {
-      for (const c of worldCells({ type: e[0], x: e[1], y: e[2], z: e[3], rot: e[4] })) {
-        const k = c.join(',');
-        if (occ.has(k) && occ.get(k) !== e) throw new Error(`overlap after smoothing grades: ${e[0]} at cell ${k}`);
-        occ.set(k, e);
+  }
+
+  _splineGrades() {
+    const B = this.blocks;
+    const field = (e, k) => +e[0].split('.')[k];
+    // the start piece stays flat: it bounds a run like an ordinary block
+    const smoothable = (e) => e.sw && e.sw.feature !== 's';
+    let i = 0;
+    while (i < B.length) {
+      if (!smoothable(B[i])) { i++; continue; }
+      // a run of sweep pieces [i, j)
+      let j = i;
+      while (j < B.length && smoothable(B[j])) { j++; if (!B[j - 1].sw.smooth) break; }
+      const run = B.slice(i, j);
+      const n = run.length;
+      const h = run.map((e) => e.sw.L), d = run.map((e) => (e.sw.rise * LEVEL) / e.sw.L);
+      const m = new Array(n + 1).fill(0);
+      m[0] = field(run[0], 6) / 100;
+      m[n] = run[n - 1].sw.smooth ? 0 : field(run[n - 1], 7) / 100;
+      if (n > 1) {
+        // tridiagonal system for the interior slopes (Thomas algorithm)
+        const a = [], b = [], c = [], r = [];
+        for (let k = 1; k < n; k++) {
+          a.push(h[k]); b.push(2 * (h[k - 1] + h[k])); c.push(h[k - 1]);
+          r.push(3 * (h[k] * d[k - 1] + h[k - 1] * d[k]));
+        }
+        r[0] -= a[0] * m[0];
+        r[n - 2] -= c[n - 2] * m[n];
+        for (let k = 1; k < n - 1; k++) { const w = a[k] / b[k - 1]; b[k] -= w * c[k - 1]; r[k] -= w * r[k - 1]; }
+        m[n - 1] = r[n - 2] / b[n - 2];
+        for (let k = n - 3; k >= 0; k--) m[k + 1] = (r[k] - c[k] * m[k + 2]) / b[k];
       }
+      run.forEach((e, k) => {
+        const parts = e[0].split('.');
+        parts[6] = String(Math.round(m[k] * 100));
+        parts[7] = String(Math.round(m[k + 1] * 100));
+        e[0] = parts.join('.');
+      });
+      i = j;
     }
   }
   // bring bank and grade back to zero over `n` cells (ordinary blocks need a flat end)

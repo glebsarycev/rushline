@@ -16,16 +16,15 @@ export const CAMPAIGN = [
     // half-pipe and a loop (after "purple" by entrylag)
     id: 'ultraviolet', name: 'Ultraviolet', style: 'fs', theme: 'violet', env: 'sunset', land: 'city',
     medals: null,
-    build: () => B().at(0, 6, 0, 0)
+    build: () => B().at(0, 6, 0, 0).smoothing('spline')
       // 1: start, turbo into a banked right, S-bend left, turbo straight, CP1
       .start().boost()
       .bankRight(3)                                  // -> E
       .straight(1).left(4)                           // -> N
       .boost().straight(1).cp()
       // 2: over the crest, wide tilted deck bending left, turbo on the tilt, CP2
-      .straight(1)
-      .up(5, 2).straight(1)
-      .down(5, 2).straight(1)
+      .prof('road')
+      .sweep('s4', { rise: 1 }).sweep('s2').sweep('s4', { rise: -1 })  // a long low hump
       .prof('deck')
       .sweep('s1')
       .sweep('l4', { rise: -1, bank: -30 })          // -> W
@@ -61,41 +60,47 @@ export const CAMPAIGN = [
     // itself (after "MirrorWorld" by OregoX)
     id: 'looking-glass', name: 'Looking Glass', style: 'st', theme: 'mirror', env: 'morning', land: 'mountains',
     medals: null,
-    build: () => B().at(0, 20, 0, 0).prof('deck')
-      // 1: start on top of tower A, turbo, right, CP1
-      .sweep('s1', { feature: 's' }).sweep('s1', { feature: 'b' }).sweep('s1')
-      .sweep('r3', { bank: 20 })                     // -> E
-      .sweep('s1', { bank: 0, feature: 'c' })
-      // 2: drop, tilted U-turn under the start straight, CP2 on the crest
-      .sweep('s1', { rise: -1 }).sweep('s2', { rise: -2 })
-      .sweep('r3', { rise: -2, bank: 30 })           // -> S
-      .sweep('r3', { rise: -1, bank: 30 })           // -> W
-      .sweep('s1', { bank: 0, feature: 'c' })
-      // 3: right with a tilt, unwind, long steep tilted left with CP3 on the tilt
-      .sweep('r3', { rise: -1, bank: 25 })           // -> N
-      .sweep('s1', { bank: 0 })
-      .sweep('s2', { rise: -1, bank: -25 })
-      .sweep('l4', { rise: -1, bank: -40, feature: 'c' })  // -> W
-      .sweep('l4', { rise: -1, bank: -30 })          // -> S
-      .sweep('s1', { bank: 0 })
-      // 4: drop to tower B, right, CP4
-      .sweep('s2', { rise: -1 })
-      .sweep('r3', { rise: -1, bank: 30 })           // -> W
-      .sweep('s1', { bank: 0, feature: 'c' })
-      // 5: a full left-hand helix that passes 32 m under CP4, CP5 on the way
-      .sweep('l4', { rise: -1, bank: -35 })          // -> S
-      .sweep('l4', { rise: -1, bank: -40 })          // -> E
-      .sweep('l4', { rise: -1, bank: -40, feature: 'c' })  // -> N
-      .sweep('l4', { rise: -1, bank: -30 })          // -> W
-      .sweep('s1', { bank: 0 })
-      // 6: turbo, big banked right U-turn with CP6, drop to the finish
-      .sweep('r3', { bank: 30 })                     // -> N
-      .sweep('s1', { bank: 0, feature: 'b' })
-      .sweep('r4', { bank: 35, feature: 'c' })       // -> E
-      .sweep('r3', { rise: -1, bank: 30 })           // -> S
-      .sweep('s1', { bank: 0 })
-      .sweep('s2', { rise: -1 })
-      .sweep('s1', { feature: 'f' })
+    // one steady descent of about 6 % (every piece after the start drops a level, the
+    // height is a spline over the whole run), and tilt comes in on the straight before
+    // a turn, holds through it and goes out on the straight after: no crest and no
+    // sudden change of tilt, so the car stays on the deck even flat out
+    build: () => B().at(0, 34, 0, 0).prof('deck').smoothing('spline')
+      .sweep('s1', { feature: 's' }).sweep('s1', { feature: 'b' })
+      // 1: tilt in, right, tilt out with CP1
+      .sweep('s3', { rise: -1, bank: 25 })
+      .sweep('r3', { rise: -1, bank: 25 })                   // -> E
+      .sweep('s4', { rise: -1, bank: 0, feature: 'c' })
+      // 2: tilted right U-turn, CP2 on the way out
+      .sweep('s3', { rise: -1, bank: 30 })
+      .sweep('r3', { rise: -1, bank: 30 })                   // -> S
+      .sweep('r3', { rise: -1, bank: 30 })                   // -> W
+      .sweep('s4', { rise: -1, bank: 0, feature: 'c' })
+      // 3: right under the start, then a long tilted left with CP3 on the tilt
+      .sweep('s3', { rise: -1, bank: 25 })
+      .sweep('r3', { rise: -1, bank: 25 })                   // -> N
+      .sweep('s3', { rise: -1, bank: 0 })
+      .sweep('s3', { rise: -1, bank: -30 })
+      .sweep('l4', { rise: -2, bank: -35, feature: 'c' })    // -> W
+      .sweep('l4', { rise: -1, bank: -35 })                  // -> S
+      .sweep('s4', { rise: -1, bank: 0 })
+      // 4: right to tower B, CP4
+      .sweep('s3', { rise: -1, bank: 30 })
+      .sweep('r3', { rise: -1, bank: 30 })                   // -> W
+      .sweep('s4', { rise: -1, bank: 0, feature: 'c' })
+      // 5: a full left helix at a steady tilt, CP5 on the way
+      .sweep('s3', { rise: -1, bank: -35 })
+      .sweep('l4', { rise: -1, bank: -35 })                  // -> S
+      .sweep('l4', { rise: -2, bank: -35 })                  // -> E
+      .sweep('l4', { rise: -1, bank: -35, feature: 'c' })    // -> N
+      .sweep('l4', { rise: -2, bank: -35 })                  // -> W
+      .sweep('s4', { rise: -1, bank: 0 })
+      // 6: turbo, big right U-turn with CP6, down to the finish
+      .sweep('s3', { rise: -1, bank: 30, feature: 'b' })
+      .sweep('r4', { rise: -1, bank: 35, feature: 'c' })     // -> N
+      .sweep('r3', { rise: -1, bank: 35 })                   // -> E
+      .sweep('s4', { rise: -1, bank: 0 })
+      .sweep('s3', { rise: -1 })
+      .sweep('s2', { feature: 'f' })
       .build(),
   },
   {
@@ -106,7 +111,7 @@ export const CAMPAIGN = [
     build: () => B().at(0, 12, 0, 0).prof('tech')
       // 1: start high, drop, right, left around a rock, CP1
       .sweep('s1', { feature: 's' })
-      .sweep('s1', { rise: -1 })
+      .sweep('s2', { rise: -1 })
       .sweep('r2')                                   // -> E
       .sweep('l2', { feature: 'c' })                 // -> N
       // 2: right hairpin, S-bend along the barriers, CP2
@@ -116,7 +121,7 @@ export const CAMPAIGN = [
       .sweep('l2', { feature: 'c' })                 // -> E
       // 3: grass hillside, dirt bend, CP3
       .prof('platform').surface('grass')
-      .sweep('s2', { rise: -2 })
+      .sweep('s4', { rise: -2 })
       .prof('tech').surface('road')
       .sweep('r3')                                   // -> S
       .surface('dirt')
@@ -130,7 +135,7 @@ export const CAMPAIGN = [
       .sweep('r4', { rise: -1, feature: 'c' })       // -> S
       .sweep('s1', { feature: 'b' })
       .sweep('l4')                                   // -> E
-      .sweep('s2', { rise: -1, feature: 'c' })
+      .sweep('s3', { rise: -1, feature: 'c' })
       // 5: tight left, dirt, left, CP6
       .sweep('l1')                                   // -> N
       .surface('dirt').sweep('r2')                   // -> E
