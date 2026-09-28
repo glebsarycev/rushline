@@ -58,10 +58,10 @@ export function buildSigns(track, bg = '#15181d') {
     g.add(s);
   };
 
-  // corners: runs of sharp curvature (radius under ~70 m), skipping stunt pieces
+  // corners: runs of curvature (radius under ~130 m), skipping stunt pieces
   const sharp = (i) => {
     const c = pts[i].block && pts[i].block.def.cat;
-    return !pts[i].air && !pts[i].nearAir && c !== 'stunt' && c !== 'pipe' && Math.abs(pts[i].k || 0) > 1 / 70;
+    return !pts[i].air && !pts[i].nearAir && c !== 'stunt' && c !== 'pipe' && Math.abs(pts[i].k || 0) > 1 / 130;
   };
   let i = 0, lastSign = -1e9;
   while (i < pts.length) {
@@ -78,7 +78,7 @@ export function buildSigns(track, bg = '#15181d') {
     }
     const deg = Math.abs(turn) * 180 / Math.PI;
     const at = Math.max(0, i - 10); // ~20 m before the corner
-    if (deg > 55 && pts[at].s - lastSign > 60) {
+    if (deg > 70 && pts[at].s - lastSign > 60) {
       place(at, -dir, deg > 150 ? (dir > 0 ? 'uright' : 'uleft') : dir > 0 ? 'right' : 'left');
       lastSign = pts[at].s;
     }
