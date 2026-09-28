@@ -31,6 +31,7 @@ won't work. An internet connection is only used for the UI fonts.
 | Restart the run | R / Delete | Y |
 | Camera (close, far, hood) | C or 1 / 2 / 3 | RB / Back |
 | Ghost on/off | G | LB |
+| Tuning overlay (speed, lateral g, slip, road radius, block) | F3 | |
 | Pause | Esc / P | Start |
 | Mute | M | |
 

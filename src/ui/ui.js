@@ -64,6 +64,7 @@ export class UI {
           <div class="unit" id="unit">km/h</div>
         </div>
         <div class="fps" id="fps" hidden></div>
+        <pre class="debug-hud" id="debug-hud" hidden></pre>
         <div class="touch" id="touch" hidden>
           <div class="grp"><button data-t="left" aria-label="Steer left">◀</button><button data-t="right" aria-label="Steer right">▶</button></div>
           <div class="grp"><button data-t="down" aria-label="Brake">Brake</button><button data-t="up" aria-label="Accelerate">Gas</button></div>
@@ -484,6 +485,8 @@ export class UI {
   }
 
   setFps(fps) { this.$('#fps').textContent = `${fps} fps`; }
+  showDebug(on) { this.$('#debug-hud').hidden = !on; }
+  setDebug(text) { this.$('#debug-hud').textContent = text; }
 
   // ---- pause / finish ---------------------------------------------------------------
   showPause(on, trackName, fromEditor) {

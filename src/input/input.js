@@ -13,6 +13,7 @@ const ACTIONS = {
   Delete: 'restart', KeyR: 'restart',
   KeyC: 'camera', Digit1: 'cam1', Digit2: 'cam2', Digit3: 'cam3',
   KeyG: 'ghost', Escape: 'pause', KeyP: 'pause', KeyM: 'mute', KeyN: 'next', KeyH: 'hud',
+  F3: 'debug',
 };
 
 const PAD_ACTIONS = { 1: 'respawn', 3: 'restart', 9: 'pause', 8: 'camera', 5: 'camera', 4: 'ghost' };

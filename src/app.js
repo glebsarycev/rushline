@@ -444,6 +444,7 @@ export class App {
           break;
         case 'respawn': if (!this.paused) this.respawn(); break;
         case 'restart': if (this.paused) this.setPaused(false); this.restart(); break;
+        case 'debug': this.debugHud = !this.debugHud; this.ui.showDebug(this.debugHud); break;
         case 'camera': this.settings.camera = this.rig.cycle(); this.ui.syncSettings(); this.ui.toast(`Camera: ${{ chase: 'close', far: 'far', hood: 'hood' }[this.rig.mode]}`); break;
         case 'cam1': case 'cam2': case 'cam3': this.rig.setMode(['chase', 'far', 'hood'][+a.slice(3) - 1]); break;
         case 'ghost': {
@@ -609,6 +610,40 @@ export class App {
     if (o.cam) this.rig.setMode(o.cam);
   }
 
+  // F3 overlay for tuning: speed, lateral g, slip angle, steering against the grip
+  // limit, the road's curvature under the car, wheels down and the current block
+  _debugTelemetry(dt) {
+    const car = this.race.car, d = (this.dbg ||= { t: 0, lat: 0, prev: car.vel.clone(), idx: 0 });
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(car.quat), fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(car.quat);
+    if (dt > 0) {
+      const acc = car.vel.clone().sub(d.prev).divideScalar(dt);
+      d.lat += (acc.dot(right) / 9.81 - d.lat) * Math.min(1, dt * 8);
+    }
+    d.prev.copy(car.vel);
+    d.t += dt;
+    if (d.t < 0.1) return;
+    d.t = 0;
+    const route = this.track.route;
+    let k = 0, blk = '-';
+    if (route) {
+      d.idx = route.nearest(car.pos.toArray(), d.idx, 20, 80);
+      const p = route.pts[d.idx];
+      k = p.k || 0;
+      if (p.block) blk = `#${p.block.i} ${p.block.type}`;
+    }
+    const slip = Math.atan2(car.vel.dot(right), Math.max(0.1, car.vel.dot(fwd))) * 180 / Math.PI;
+    const lim = car.steerLimit(car.fwdSpeed);
+    this.ui.setDebug([
+      `speed   ${(car.speed * 3.6).toFixed(0).padStart(4)} km/h`,
+      `lateral ${d.lat.toFixed(2).padStart(5)} g`,
+      `slip    ${slip.toFixed(1).padStart(5)} deg`,
+      `steer   ${(car.steerAngle * 180 / Math.PI).toFixed(1).padStart(5)} / ${(lim * 180 / Math.PI).toFixed(1)} deg`,
+      `road R  ${Math.abs(k) > 1e-4 ? (1 / Math.abs(k)).toFixed(0).padStart(5) + ' m ' + (k > 0 ? 'right' : 'left') : '    - straight'}`,
+      `wheels  ${car.grounded} down`,
+      `block   ${blk}`,
+    ].join('\n'));
+  }
+
   // ---- frame loop ---------------------------------------------------------------------------
   _frame = (now) => {
     requestAnimationFrame(this._frame);
@@ -618,6 +653,7 @@ export class App {
     this._watchPerf(raw);
     this.input.pollGamepad();
     this.fps.frames++; this.fps.t += dt;
+    if (this.debugHud && this.mode === 'race') this._debugTelemetry(dt);
     if (this.fps.t >= 0.5) { if (this.settings.showFps) this.ui.setFps(Math.round(this.fps.frames / this.fps.t)); this.fps.frames = 0; this.fps.t = 0; }
     try {
       if (this.mode === 'editor') {
